@@ -177,28 +177,35 @@ def ultima_actualizacion_supabase():
     return None
 
 # ── Notion ────────────────────────────────────────────────────────────────────
-def registrar_en_notion(nombre, id_lic, organismo, cierre, monto_disponible, monto_ofertado, tematica, modalidad, region, estado):
+def registrar_en_notion(nombre, id_lic, organismo, cierre, estado,
+                         monto_disponible=0, monto_ofertado=0,
+                         tematica="", modalidad="", region=""):
     headers = {
         "Authorization":  f"Bearer {NOTION_TOKEN}",
         "Content-Type":   "application/json",
         "Notion-Version": "2022-06-28"
     }
-    data = {
-        "parent": {"database_id": NOTION_DB},
-        "properties": {
-            "Nombre":            {"title":       [{"text": {"content": nombre}}]},
-            "ID Licitacion":     {"rich_text":   [{"text": {"content": id_lic}}]},
-            "Organismo":         {"rich_text":   [{"text": {"content": organismo}}]},
-            "Estado":            {"select":      {"name": estado}},
-            "Monto Disponible":  {"number":      monto_disponible},
-            "Monto Ofertado":    {"number":      monto_ofertado},
-            "Temática":          {"multi_select":[{"name": tematica}]},
-            "Modalidad":         {"select":      {"name": modalidad}},
-            "Region":            {"rich_text":   [{"text": {"content": region}}]},
-            "Fecha Cierre":      {"date":        {"start": cierre[:10]}},
-            "Fecha Postulacion": {"date":        {"start": datetime.now().strftime("%Y-%m-%d")}},
-        }
+    properties = {
+        "Nombre":            {"title":      [{"text": {"content": nombre}}]},
+        "ID Licitacion":     {"rich_text":  [{"text": {"content": id_lic}}]},
+        "Organismo":         {"rich_text":  [{"text": {"content": organismo}}]},
+        "Estado":            {"select":     {"name": estado}},
+        "Fecha Cierre":      {"date":       {"start": cierre[:10]}},
+        "Fecha Postulacion": {"date":       {"start": datetime.now().strftime("%Y-%m-%d")}},
     }
+    # Campos opcionales solo para Postulando
+    if monto_disponible:
+        properties["Monto Disponible"] = {"number": monto_disponible}
+    if monto_ofertado:
+        properties["Monto Ofertado"] = {"number": monto_ofertado}
+    if tematica:
+        properties["Temática"] = {"multi_select": [{"name": tematica}]}
+    if modalidad:
+        properties["Modalidad"] = {"select": {"name": modalidad}}
+    if region:
+        properties["Region"] = {"rich_text": [{"text": {"content": region}}]}
+
+    data = {"parent": {"database_id": NOTION_DB}, "properties": properties}
     try:
         response = requests.post(
             "https://api.notion.com/v1/pages",
@@ -259,7 +266,7 @@ if cargar:
     else:
         st.warning("No se encontraron licitaciones relevantes.")
 
-# ── Tabla con selección de fila ──
+# ── Tabla ──
 if st.session_state.resultados:
     st.success(f"{len(st.session_state.resultados)} licitaciones vigentes")
     df = pd.DataFrame(st.session_state.resultados)
@@ -281,11 +288,9 @@ if st.session_state.resultados:
         selection_mode="single-row",
     )
 
-    # Detectar fila seleccionada
     filas_sel = seleccion.selection.rows if seleccion.selection else []
     if filas_sel:
-        idx = filas_sel[0]
-        fila_nueva = df_display.iloc[idx].to_dict()
+        fila_nueva = df_display.iloc[filas_sel[0]].to_dict()
         if st.session_state.fila_seleccionada != fila_nueva:
             st.session_state.fila_seleccionada = fila_nueva
             st.session_state.estado_accion = None
@@ -297,23 +302,34 @@ if st.session_state.resultados:
         st.markdown(f"**✅ Seleccionada:** {fila['Nombre']}  \n`{fila['ID']}` · {fila['Organismo']} · Cierre: {fila['Cierre']}")
 
         col_verde, col_amarillo, col_cancel = st.columns([2, 2, 3])
+
         with col_verde:
             if st.button("🟢 Postulando", use_container_width=True):
                 st.session_state.estado_accion = "Postulando"
+
         with col_amarillo:
+            # De interés: registro directo, sin formulario
             if st.button("🟡 De interés", use_container_width=True):
-                st.session_state.estado_accion = "De interés"
+                ok = registrar_en_notion(
+                    fila["Nombre"], fila["ID"], fila["Organismo"],
+                    fila["Cierre"], "De interés"
+                )
+                if ok:
+                    st.success(f"⭐ '{fila['Nombre']}' marcada como **De interés** en Notion.")
+                    st.session_state.fila_seleccionada = None
+                    st.session_state.estado_accion = None
+                else:
+                    st.error("Error al registrar en Notion.")
+
         with col_cancel:
             if st.button("✖ Cancelar", use_container_width=True):
                 st.session_state.fila_seleccionada = None
                 st.session_state.estado_accion = None
                 st.rerun()
 
-        # ── Formulario según acción ──
-        if st.session_state.estado_accion:
-            estado = st.session_state.estado_accion
-            icono = "🟢" if estado == "Postulando" else "🟡"
-            st.subheader(f"{icono} Registrar en Notion — {estado}")
+        # ── Formulario solo para Postulando ──
+        if st.session_state.estado_accion == "Postulando":
+            st.subheader("🟢 Registrar en Notion — Postulando")
 
             col1, col2 = st.columns(2)
             with col1:
@@ -335,14 +351,15 @@ if st.session_state.resultados:
             if st.button("Confirmar y registrar en Notion", type="primary"):
                 ok = registrar_en_notion(
                     fila["Nombre"], fila["ID"], fila["Organismo"],
-                    fila["Cierre"], monto_disponible, monto_ofertado,
-                    tematica, modalidad, region, estado
+                    fila["Cierre"], "Postulando",
+                    monto_disponible, monto_ofertado,
+                    tematica, modalidad, region
                 )
                 if ok:
-                    st.success(f"✅ '{fila['Nombre']}' registrada en Notion como **{estado}**.")
+                    st.success(f"✅ '{fila['Nombre']}' registrada en Notion como **Postulando**.")
                     st.session_state.fila_seleccionada = None
                     st.session_state.estado_accion = None
                 else:
-                    st.error("Error al registrar. Verifica el token y el acceso a la base de datos.")
+                    st.error("Error al registrar en Notion.")
 else:
     st.info("Presiona 'Cargar licitaciones' para comenzar.")
