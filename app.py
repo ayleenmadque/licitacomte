@@ -183,10 +183,7 @@ def ultima_actualizacion_supabase():
     return None
 
 # ── Notion ────────────────────────────────────────────────────────────────────
-def registrar_en_notion(nombre, id_lic, organismo, cierre, estado,
-                         productos="", region="",
-                         monto_disponible=0, monto_ofertado=0,
-                         modalidad=""):
+def registrar_en_notion(nombre, id_lic, organismo, cierre, estado, productos="", region="", monto=0):
     headers = {
         "Authorization":  f"Bearer {NOTION_TOKEN}",
         "Content-Type":   "application/json",
@@ -204,12 +201,8 @@ def registrar_en_notion(nombre, id_lic, organismo, cierre, estado,
         properties["Temática"] = {"rich_text": [{"text": {"content": productos[:200]}}]}
     if region:
         properties["Region"] = {"rich_text": [{"text": {"content": region}}]}
-    if monto_disponible:
-        properties["Monto Disponible"] = {"number": monto_disponible}
-    if monto_ofertado:
-        properties["Monto Ofertado"] = {"number": monto_ofertado}
-    if modalidad:
-        properties["Modalidad"] = {"select": {"name": modalidad}}
+    if monto:
+        properties["Monto Disponible"] = {"number": monto}
 
     data = {"parent": {"database_id": NOTION_DB}, "properties": properties}
     try:
@@ -235,8 +228,6 @@ if "cargado_desde_supabase" not in st.session_state:
     st.session_state.cargado_desde_supabase = False
 if "fila_seleccionada" not in st.session_state:
     st.session_state.fila_seleccionada = None
-if "estado_accion" not in st.session_state:
-    st.session_state.estado_accion = None
 
 if not st.session_state.cargado_desde_supabase:
     datos = leer_desde_supabase()
@@ -263,7 +254,6 @@ if cargar:
             ok = guardar_en_supabase(resultados)
         st.session_state.resultados = resultados
         st.session_state.fila_seleccionada = None
-        st.session_state.estado_accion = None
         if ok:
             st.success(f"✅ {len(resultados)} licitaciones procesadas y guardadas en Supabase.")
         else:
@@ -297,57 +287,43 @@ if st.session_state.resultados:
         fila_nueva = df_display.iloc[filas_sel[0]].to_dict()
         if st.session_state.fila_seleccionada != fila_nueva:
             st.session_state.fila_seleccionada = fila_nueva
-            st.session_state.estado_accion = None
 
     if st.session_state.fila_seleccionada:
         fila = st.session_state.fila_seleccionada
         st.divider()
         st.markdown(f"**✅ Seleccionada:** {fila['Nombre']}  \n`{fila['ID']}` · {fila['Organismo']} · Cierre: {fila['Cierre']}")
+        st.markdown(f"**Productos:** {fila.get('Productos','—')} · **Región:** {fila.get('Region','—')} · **Monto:** ${fila.get('Monto',0):,.0f}")
 
         col_verde, col_amarillo, col_cancel = st.columns([2, 2, 3])
         with col_verde:
             if st.button("🟢 Postulando", use_container_width=True):
-                st.session_state.estado_accion = "Postulando"
+                ok = registrar_en_notion(
+                    fila["Nombre"], fila["ID"], fila["Organismo"],
+                    fila["Cierre"], "Postulando",
+                    fila.get("Productos", ""), fila.get("Region", ""), fila.get("Monto", 0)
+                )
+                if ok:
+                    st.success(f"✅ '{fila['Nombre']}' registrada como **Postulando** en Notion.")
+                    st.session_state.fila_seleccionada = None
+                else:
+                    st.error("Error al registrar en Notion.")
+
         with col_amarillo:
             if st.button("🟡 De interés", use_container_width=True):
-                st.session_state.estado_accion = "De interés"
+                ok = registrar_en_notion(
+                    fila["Nombre"], fila["ID"], fila["Organismo"],
+                    fila["Cierre"], "De interés",
+                    fila.get("Productos", ""), fila.get("Region", ""), fila.get("Monto", 0)
+                )
+                if ok:
+                    st.success(f"⭐ '{fila['Nombre']}' registrada como **De interés** en Notion.")
+                    st.session_state.fila_seleccionada = None
+                else:
+                    st.error("Error al registrar en Notion.")
+
         with col_cancel:
             if st.button("✖ Cancelar", use_container_width=True):
                 st.session_state.fila_seleccionada = None
-                st.session_state.estado_accion = None
                 st.rerun()
-
-        if st.session_state.estado_accion:
-            estado   = st.session_state.estado_accion
-            icono    = "🟢" if estado == "Postulando" else "🟡"
-            productos = fila.get("Productos", "")
-            region    = fila.get("Region", "")
-            monto     = fila.get("Monto", 0)
-
-            st.subheader(f"{icono} Registrar en Notion — {estado}")
-            st.markdown(f"**Productos:** {productos or '—'} · **Región:** {region or '—'} · **Monto estimado:** ${monto:,.0f}")
-
-            monto_ofertado = 0
-            modalidad = ""
-            if estado == "Postulando":
-                col1, col2 = st.columns(2)
-                with col1:
-                    monto_ofertado = st.number_input("Monto ofertado ($)", min_value=0, step=100000)
-                with col2:
-                    modalidad = st.selectbox("Modalidad", ["Online", "Presencial", "Híbrido"])
-
-            if st.button("Confirmar y registrar en Notion", type="primary"):
-                ok = registrar_en_notion(
-                    fila["Nombre"], fila["ID"], fila["Organismo"],
-                    fila["Cierre"], estado,
-                    productos, region,
-                    monto, monto_ofertado, modalidad
-                )
-                if ok:
-                    st.success(f"✅ '{fila['Nombre']}' registrada en Notion como **{estado}**.")
-                    st.session_state.fila_seleccionada = None
-                    st.session_state.estado_accion = None
-                else:
-                    st.error("Error al registrar en Notion.")
 else:
     st.info("Presiona 'Cargar licitaciones' para comenzar.")
