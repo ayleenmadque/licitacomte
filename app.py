@@ -201,8 +201,7 @@ def registrar_en_notion(nombre, id_lic, organismo, cierre, estado,
         "Fecha Postulacion": {"date":      {"start": datetime.now().strftime("%Y-%m-%d")}},
     }
     if productos:
-        # Temática en Notion = texto de Productos (máx 100 chars por límite de select)
-        properties["Temática"] = {"multi_select": [{"name": productos[:100]}]}
+        properties["Temática"] = {"rich_text": [{"text": {"content": productos[:200]}}]}
     if region:
         properties["Region"] = {"rich_text": [{"text": {"content": region}}]}
     if monto_disponible:
