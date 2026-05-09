@@ -4,7 +4,6 @@ import pandas as pd
 from datetime import datetime, timedelta
 import time
 import unicodedata
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 API_TICKET = st.secrets["API_TICKET"]
 NOTION_TOKEN = st.secrets["NOTION_TOKEN"]
@@ -28,21 +27,17 @@ def normalizar(texto):
     texto = "".join(c for c in texto if unicodedata.category(c) != "Mn")
     return texto
 
-def obtener_dia(dias_atras):
-    try:
-        fecha = (datetime.now() - timedelta(days=dias_atras)).strftime("%d%m%Y")
-        params = {"ticket": API_TICKET, "fecha": fecha}
-        response = requests.get(API_URL, params=params, timeout=30)
-        return response.json().get("Listado", [])
-    except:
-        return []
-
 def obtener_licitaciones():
     todas = []
-    with ThreadPoolExecutor(max_workers=3) as executor:
-        futuros = {executor.submit(obtener_dia, d): d for d in range(0, 30)}
-        for futuro in as_completed(futuros):
-            todas.extend(futuro.result())
+    for dias_atras in range(0, 30):
+        try:
+            fecha = (datetime.now() - timedelta(days=dias_atras)).strftime("%d%m%Y")
+            params = {"ticket": API_TICKET, "fecha": fecha}
+            response = requests.get(API_URL, params=params, timeout=30)
+            todas.extend(response.json().get("Listado", []))
+            time.sleep(0.3)
+        except:
+            pass
     return todas
 
 def obtener_detalle(codigo):
@@ -64,57 +59,29 @@ def obtener_detalle(codigo):
                     return normalizar(texto), organismo
         except:
             pass
-        time.sleep(1)
+        time.sleep(2)
     return "", ""
-
-def obtener_detalle_paralelo(codigos):
-    resultados = {}
-    with ThreadPoolExecutor(max_workers=3) as executor:
-        futuros = {executor.submit(obtener_detalle, c): c for c in codigos}
-        for futuro in as_completed(futuros):
-            codigo = futuros[futuro]
-            resultados[codigo] = futuro.result()
-    return resultados
 
 def calcular_score(texto):
     return sum(1 for p in PALABRAS_SCORE if p in texto)
 
 def procesar(licitaciones):
     ahora = datetime.now()
-    candidatos = []
-
-    for l in licitaciones:
+    resultado = []
+    barra = st.progress(0, text="Analizando licitaciones...")
+    total = len(licitaciones)
+    for i, l in enumerate(licitaciones):
         nombre = normalizar(l.get("Nombre", ""))
         if not any(p in nombre for p in PALABRAS_BASE):
             continue
         cierre_str = l.get("FechaCierre", "")
         try:
             cierre = datetime.fromisoformat(cierre_str[:19])
-            if cierre <= ahora:
+            if cierre <= datetime.now():
                 continue
-            candidatos.append(l)
-        except:
-            pass
-
-    if not candidatos:
-        return []
-
-    barra = st.progress(0, text=f"Consultando detalle de {len(candidatos)} licitaciones...")
-    codigos = [l.get("CodigoExterno", "") for l in candidatos]
-    detalles = obtener_detalle_paralelo(codigos)
-    barra.progress(1.0, text="Listo.")
-    barra.empty()
-
-    resultado = []
-    ahora = datetime.now()
-    for l in candidatos:
-        cierre_str = l.get("FechaCierre", "")
-        try:
-            cierre = datetime.fromisoformat(cierre_str[:19])
-            dias = (cierre - ahora).days
+            dias = (cierre - datetime.now()).days
             codigo = l.get("CodigoExterno", "")
-            detalle_texto, organismo = detalles.get(codigo, ("", ""))
-            nombre = normalizar(l.get("Nombre", ""))
+            detalle_texto, organismo = obtener_detalle(codigo)
             score = calcular_score(nombre) + calcular_score(detalle_texto)
             resultado.append({
                 "Nombre": l.get("Nombre", ""),
@@ -127,7 +94,8 @@ def procesar(licitaciones):
             })
         except:
             pass
-
+        barra.progress((i + 1) / total, text=f"Analizando {i+1} de {total}...")
+    barra.empty()
     return sorted(resultado, key=lambda x: (-x["Score"], x["Dias restantes"]))
 
 def registrar_en_notion(nombre, id_lic, organismo, cierre, monto_disponible, monto_ofertado, tematica, modalidad, region):
