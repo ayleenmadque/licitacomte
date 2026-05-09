@@ -178,8 +178,9 @@ def ultima_actualizacion_supabase():
 
 # ── Notion ────────────────────────────────────────────────────────────────────
 def registrar_en_notion(nombre, id_lic, organismo, cierre, estado,
+                         tematica="", region="",
                          monto_disponible=0, monto_ofertado=0,
-                         tematica="", modalidad="", region=""):
+                         modalidad=""):
     headers = {
         "Authorization":  f"Bearer {NOTION_TOKEN}",
         "Content-Type":   "application/json",
@@ -193,16 +194,16 @@ def registrar_en_notion(nombre, id_lic, organismo, cierre, estado,
         "Fecha Cierre":      {"date":      {"start": cierre[:10]}},
         "Fecha Postulacion": {"date":      {"start": datetime.now().strftime("%Y-%m-%d")}},
     }
+    if tematica:
+        properties["Temática"] = {"multi_select": [{"name": tematica}]}
+    if region:
+        properties["Region"] = {"rich_text": [{"text": {"content": region}}]}
     if monto_disponible:
         properties["Monto Disponible"] = {"number": monto_disponible}
     if monto_ofertado:
         properties["Monto Ofertado"] = {"number": monto_ofertado}
-    if tematica:
-        properties["Temática"] = {"multi_select": [{"name": tematica}]}
     if modalidad:
         properties["Modalidad"] = {"select": {"name": modalidad}}
-    if region:
-        properties["Region"] = {"rich_text": [{"text": {"content": region}}]}
 
     data = {"parent": {"database_id": NOTION_DB}, "properties": properties}
 
@@ -305,60 +306,56 @@ if st.session_state.resultados:
         st.markdown(f"**✅ Seleccionada:** {fila['Nombre']}  \n`{fila['ID']}` · {fila['Organismo']} · Cierre: {fila['Cierre']}")
 
         col_verde, col_amarillo, col_cancel = st.columns([2, 2, 3])
-
         with col_verde:
             if st.button("🟢 Postulando", use_container_width=True):
                 st.session_state.estado_accion = "Postulando"
-
         with col_amarillo:
             if st.button("🟡 De interés", use_container_width=True):
-                ok = registrar_en_notion(
-                    fila["Nombre"], fila["ID"], fila["Organismo"],
-                    fila["Cierre"], "De interés"
-                )
-                if ok:
-                    st.success(f"⭐ '{fila['Nombre']}' marcada como **De interés** en Notion.")
-                    st.session_state.fila_seleccionada = None
-                    st.session_state.estado_accion = None
-                else:
-                    st.error("Error al registrar en Notion.")
-
+                st.session_state.estado_accion = "De interés"
         with col_cancel:
             if st.button("✖ Cancelar", use_container_width=True):
                 st.session_state.fila_seleccionada = None
                 st.session_state.estado_accion = None
                 st.rerun()
 
-        # ── Formulario solo para Postulando ──
-        if st.session_state.estado_accion == "Postulando":
-            st.subheader("🟢 Registrar en Notion — Postulando")
+        # ── Formulario ──
+        if st.session_state.estado_accion:
+            estado = st.session_state.estado_accion
+            icono = "🟢" if estado == "Postulando" else "🟡"
+            st.subheader(f"{icono} Registrar en Notion — {estado}")
 
+            # Temática y Región siempre presentes
             col1, col2 = st.columns(2)
             with col1:
-                monto_ofertado = st.number_input("Monto ofertado ($)", min_value=0, step=100000)
-            with col2:
-                monto_disponible = st.number_input("Monto disponible ($)", min_value=0, step=100000)
-
-            col3, col4, col5 = st.columns(3)
-            with col3:
                 tematica = st.selectbox("Temática", [
                     "Power BI", "Excel", "IA", "Office 365", "Google Workspace",
                     "Transformacion Digital", "Herramientas Digitales", "Mejora Continua"
                 ])
-            with col4:
-                modalidad = st.selectbox("Modalidad", ["Online", "Presencial", "Híbrido"])
-            with col5:
+            with col2:
                 region = st.text_input("Región")
+
+            # Montos y modalidad solo para Postulando
+            monto_ofertado = 0
+            monto_disponible = 0
+            modalidad = ""
+            if estado == "Postulando":
+                col3, col4, col5 = st.columns(3)
+                with col3:
+                    monto_ofertado = st.number_input("Monto ofertado ($)", min_value=0, step=100000)
+                with col4:
+                    monto_disponible = st.number_input("Monto disponible ($)", min_value=0, step=100000)
+                with col5:
+                    modalidad = st.selectbox("Modalidad", ["Online", "Presencial", "Híbrido"])
 
             if st.button("Confirmar y registrar en Notion", type="primary"):
                 ok = registrar_en_notion(
                     fila["Nombre"], fila["ID"], fila["Organismo"],
-                    fila["Cierre"], "Postulando",
-                    monto_disponible, monto_ofertado,
-                    tematica, modalidad, region
+                    fila["Cierre"], estado,
+                    tematica, region,
+                    monto_disponible, monto_ofertado, modalidad
                 )
                 if ok:
-                    st.success(f"✅ '{fila['Nombre']}' registrada en Notion como **Postulando**.")
+                    st.success(f"✅ '{fila['Nombre']}' registrada en Notion como **{estado}**.")
                     st.session_state.fila_seleccionada = None
                     st.session_state.estado_accion = None
                 else:
