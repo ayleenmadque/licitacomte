@@ -186,14 +186,13 @@ def registrar_en_notion(nombre, id_lic, organismo, cierre, estado,
         "Notion-Version": "2022-06-28"
     }
     properties = {
-        "Nombre":            {"title":      [{"text": {"content": nombre}}]},
-        "ID Licitacion":     {"rich_text":  [{"text": {"content": id_lic}}]},
-        "Organismo":         {"rich_text":  [{"text": {"content": organismo}}]},
-        "Estado":            {"select":     {"name": estado}},
-        "Fecha Cierre":      {"date":       {"start": cierre[:10]}},
-        "Fecha Postulacion": {"date":       {"start": datetime.now().strftime("%Y-%m-%d")}},
+        "Nombre":            {"title":     [{"text": {"content": nombre}}]},
+        "ID Licitacion":     {"rich_text": [{"text": {"content": id_lic}}]},
+        "Organismo":         {"rich_text": [{"text": {"content": organismo}}]},
+        "Estado":            {"select":    {"name": estado}},
+        "Fecha Cierre":      {"date":      {"start": cierre[:10]}},
+        "Fecha Postulacion": {"date":      {"start": datetime.now().strftime("%Y-%m-%d")}},
     }
-    # Campos opcionales solo para Postulando
     if monto_disponible:
         properties["Monto Disponible"] = {"number": monto_disponible}
     if monto_ofertado:
@@ -206,13 +205,18 @@ def registrar_en_notion(nombre, id_lic, organismo, cierre, estado,
         properties["Region"] = {"rich_text": [{"text": {"content": region}}]}
 
     data = {"parent": {"database_id": NOTION_DB}, "properties": properties}
+
     try:
         response = requests.post(
             "https://api.notion.com/v1/pages",
             headers=headers, json=data, timeout=15
         )
+        # DEBUG temporal — muestra respuesta de Notion
+        if response.status_code != 200:
+            st.expander("🔍 Detalle del error Notion").json(response.json())
         return response.status_code == 200
-    except:
+    except Exception as e:
+        st.error(f"Excepción al llamar Notion: {e}")
         return False
 
 # ── UI ────────────────────────────────────────────────────────────────────────
@@ -308,7 +312,6 @@ if st.session_state.resultados:
                 st.session_state.estado_accion = "Postulando"
 
         with col_amarillo:
-            # De interés: registro directo, sin formulario
             if st.button("🟡 De interés", use_container_width=True):
                 ok = registrar_en_notion(
                     fila["Nombre"], fila["ID"], fila["Organismo"],
