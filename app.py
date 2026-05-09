@@ -16,14 +16,18 @@ def normalizar(texto):
     texto = "".join(c for c in texto if unicodedata.category(c) != "Mn")
     return texto
 
-def obtener_licitaciones():
+def obtener_licitaciones(palabras):
     todas = []
     for dias_atras in range(0, 30):
         try:
             fecha = (datetime.now() - timedelta(days=dias_atras)).strftime("%d%m%Y")
             params = {"ticket": API_TICKET, "fecha": fecha}
             response = requests.get(API_URL, params=params, timeout=30)
-            todas.extend(response.json().get("Listado", []))
+            listado = response.json().get("Listado", [])
+            for l in listado:
+                nombre = normalizar(l.get("Nombre", ""))
+                if any(p in nombre for p in palabras):
+                    todas.append(l)
             time.sleep(0.3)
         except:
             pass
@@ -114,33 +118,23 @@ st.caption("Sistema de inteligencia de licitaciones - Perfil: COMTE")
 if "resultados" not in st.session_state:
     st.session_state.resultados = []
 
-if st.button("Cargar licitaciones"):
-    with st.spinner("Cargando ultimos 30 dias..."):
-        licitaciones = obtener_licitaciones()
-    st.session_state.resultados = procesar(licitaciones)
+areas = st.text_input(
+    "¿Qué licitaciones quieres buscar?",
+    placeholder="Ej: power bi, excel, capacitacion, transformacion digital"
+)
+
+if st.button("Buscar licitaciones"):
+    if not areas.strip():
+        st.warning("Escribe al menos una palabra clave antes de buscar.")
+    else:
+        palabras = [normalizar(p.strip()) for p in areas.split(",") if p.strip()]
+        with st.spinner(f"Buscando licitaciones para: {', '.join(palabras)}..."):
+            licitaciones = obtener_licitaciones(palabras)
+        st.session_state.resultados = procesar(licitaciones)
 
 if st.session_state.resultados:
     st.success(f"{len(st.session_state.resultados)} licitaciones encontradas")
-
-    areas = st.text_input(
-        "Filtrar por areas de interes",
-        placeholder="Ej: power bi, excel, capacitacion, IA, transformacion digital"
-    )
-
     df = pd.DataFrame(st.session_state.resultados)
-
-    if areas:
-        palabras = [normalizar(p.strip()) for p in areas.split(",") if p.strip()]
-        mask = df.apply(
-            lambda row: any(
-                p in normalizar(str(row["Nombre"])) or p in normalizar(str(row["Productos"]))
-                for p in palabras
-            ),
-            axis=1
-        )
-        df = df[mask]
-        st.caption(f"{len(df)} licitaciones para tus areas de interes")
-
     df.index = range(1, len(df) + 1)
     st.dataframe(df, use_container_width=True)
 
@@ -166,4 +160,4 @@ if st.session_state.resultados:
         else:
             st.warning("No se encontro ninguna licitacion con ese ID.")
 else:
-    st.info("Presiona 'Cargar licitaciones' para comenzar.")
+    st.info("Escribe tus palabras clave y presiona 'Buscar licitaciones'.")
