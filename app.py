@@ -9,7 +9,7 @@ from supabase import create_client, Client
 # ── Credenciales ──────────────────────────────────────────────────────────────
 API_TICKET    = st.secrets["API_TICKET"]
 NOTION_TOKEN  = st.secrets["NOTION_TOKEN"]
-NOTION_DB     = "d13f6cc5-3ddb-4d3a-9b71-648779c68f37"
+NOTION_DB     = "d4a6c914-eec5-4bb6-af35-2419ac70368d"
 SUPABASE_URL  = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY  = st.secrets["SUPABASE_KEY"]
 
@@ -211,7 +211,6 @@ def registrar_en_notion(nombre, id_lic, organismo, cierre, estado,
             "https://api.notion.com/v1/pages",
             headers=headers, json=data, timeout=15
         )
-        # DEBUG temporal — muestra respuesta de Notion
         if response.status_code != 200:
             st.expander("🔍 Detalle del error Notion").json(response.json())
         return response.status_code == 200
