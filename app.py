@@ -32,6 +32,16 @@ PALABRAS_SCORE = [
     "transformacion digital", "herramientas digitales", "mejora continua"
 ]
 
+PALABRAS_TEMATICA = {
+    "Power BI":               ["power bi"],
+    "Excel":                  ["excel", "hojas de calculo"],
+    "IA":                     ["inteligencia artificial", " ia "],
+    "Office 365":             ["office 365"],
+    "Google Workspace":       ["google workspace"],
+    "Transformacion Digital": ["transformacion digital", "herramientas digitales"],
+    "Mejora Continua":        ["mejora continua"],
+}
+
 # ── Utilidades ────────────────────────────────────────────────────────────────
 def normalizar(texto):
     texto = texto.lower()
@@ -41,6 +51,12 @@ def normalizar(texto):
 
 def calcular_score(texto):
     return sum(1 for p in PALABRAS_SCORE if p in texto)
+
+def inferir_tematica(texto):
+    for tematica, palabras in PALABRAS_TEMATICA.items():
+        if any(p in texto for p in palabras):
+            return tematica
+    return "Transformacion Digital"
 
 # ── API Mercado Público ───────────────────────────────────────────────────────
 def obtener_licitaciones():
@@ -66,22 +82,31 @@ def obtener_detalle(codigo):
             if listado:
                 l = listado[0]
                 organismo = l.get("Comprador", {}).get("NombreOrganismo", "")
-                items = l.get("Items", {}).get("Listado", [])
-                texto = " ".join([
+                region    = l.get("Comprador", {}).get("Region", "")
+                monto     = l.get("MontoEstimado", 0) or 0
+                items     = l.get("Items", {}).get("Listado", [])
+                texto     = " ".join([
                     i.get("NombreEspanol", "") + " " + i.get("Descripcion", "")
                     for i in items
                 ])
+                # DEBUG: mostrar estructura completa de la primera licitación
+                if st.session_state.get("debug_mostrado") is False:
+                    with st.expander("🔍 DEBUG — estructura API (primera licitación)"):
+                        st.json(l)
+                    st.session_state.debug_mostrado = True
                 if organismo or texto:
-                    return normalizar(texto), organismo
+                    return normalizar(texto), organismo, region, monto
         except:
             pass
         time.sleep(2)
-    return "", ""
+    return "", "", "", 0
 
 def procesar(licitaciones):
     resultado = []
     barra = st.progress(0, text="Analizando licitaciones...")
     total = len(licitaciones)
+    st.session_state.debug_mostrado = False  # mostrar debug solo una vez
+
     for i, l in enumerate(licitaciones):
         nombre = normalizar(l.get("Nombre", ""))
         if not any(p in nombre for p in PALABRAS_BASE):
@@ -91,10 +116,11 @@ def procesar(licitaciones):
             cierre = datetime.fromisoformat(cierre_str[:19])
             if cierre <= datetime.now():
                 continue
-            dias = (cierre - datetime.now()).days
+            dias   = (cierre - datetime.now()).days
             codigo = l.get("CodigoExterno", "")
-            detalle_texto, organismo = obtener_detalle(codigo)
-            score = calcular_score(nombre) + calcular_score(detalle_texto)
+            detalle_texto, organismo, region, monto = obtener_detalle(codigo)
+            score    = calcular_score(nombre) + calcular_score(detalle_texto)
+            tematica = inferir_tematica(nombre + " " + detalle_texto)
             resultado.append({
                 "Nombre":         l.get("Nombre", ""),
                 "ID":             codigo,
@@ -103,6 +129,9 @@ def procesar(licitaciones):
                 "Cierre":         cierre_str[:16].replace("T", " "),
                 "Dias restantes": dias,
                 "Score":          score,
+                "Region":         region,
+                "Monto":          monto,
+                "Tematica":       tematica,
             })
         except:
             pass
@@ -153,6 +182,9 @@ def leer_desde_supabase():
                 "Cierre":         f["cierre"],
                 "Dias restantes": f["dias_restantes"],
                 "Score":          f["score"],
+                "Region":         f.get("region", ""),
+                "Monto":          f.get("monto", 0),
+                "Tematica":       f.get("tematica", ""),
             }
             for f in (response.data or [])
         ]
@@ -206,7 +238,6 @@ def registrar_en_notion(nombre, id_lic, organismo, cierre, estado,
         properties["Modalidad"] = {"select": {"name": modalidad}}
 
     data = {"parent": {"database_id": NOTION_DB}, "properties": properties}
-
     try:
         response = requests.post(
             "https://api.notion.com/v1/pages",
@@ -224,7 +255,6 @@ st.set_page_config(page_title="LicitaComte", layout="wide")
 st.title("🏆 LicitaComte")
 st.caption("Sistema de inteligencia de licitaciones — Perfil: COMTE")
 
-# Session state
 if "resultados" not in st.session_state:
     st.session_state.resultados = []
 if "cargado_desde_supabase" not in st.session_state:
@@ -233,15 +263,15 @@ if "fila_seleccionada" not in st.session_state:
     st.session_state.fila_seleccionada = None
 if "estado_accion" not in st.session_state:
     st.session_state.estado_accion = None
+if "debug_mostrado" not in st.session_state:
+    st.session_state.debug_mostrado = True  # no mostrar hasta que se cargue
 
-# Carga automática desde Supabase
 if not st.session_state.cargado_desde_supabase:
     datos = leer_desde_supabase()
     if datos:
         st.session_state.resultados = datos
     st.session_state.cargado_desde_supabase = True
 
-# Cabecera
 ultima = ultima_actualizacion_supabase()
 col_btn, col_info = st.columns([2, 3])
 with col_btn:
@@ -252,7 +282,6 @@ with col_info:
     else:
         st.warning("Sin datos guardados. Presiona 'Cargar licitaciones' para comenzar.")
 
-# Proceso desde API
 if cargar:
     with st.spinner("Descargando licitaciones de los últimos 30 días..."):
         licitaciones = obtener_licitaciones()
@@ -270,7 +299,6 @@ if cargar:
     else:
         st.warning("No se encontraron licitaciones relevantes.")
 
-# ── Tabla ──
 if st.session_state.resultados:
     st.success(f"{len(st.session_state.resultados)} licitaciones vigentes")
     df = pd.DataFrame(st.session_state.resultados)
@@ -299,7 +327,6 @@ if st.session_state.resultados:
             st.session_state.fila_seleccionada = fila_nueva
             st.session_state.estado_accion = None
 
-    # ── Panel de acción ──
     if st.session_state.fila_seleccionada:
         fila = st.session_state.fila_seleccionada
         st.divider()
@@ -318,41 +345,33 @@ if st.session_state.resultados:
                 st.session_state.estado_accion = None
                 st.rerun()
 
-        # ── Formulario ──
         if st.session_state.estado_accion:
             estado = st.session_state.estado_accion
             icono = "🟢" if estado == "Postulando" else "🟡"
             st.subheader(f"{icono} Registrar en Notion — {estado}")
 
-            # Temática y Región siempre presentes
-            col1, col2 = st.columns(2)
-            with col1:
-                tematica = st.selectbox("Temática", [
-                    "Power BI", "Excel", "IA", "Office 365", "Google Workspace",
-                    "Transformacion Digital", "Herramientas Digitales", "Mejora Continua"
-                ])
-            with col2:
-                region = st.text_input("Región")
+            # Mostrar datos inferidos de la API
+            tematica_api = fila.get("Tematica", "")
+            region_api   = fila.get("Region", "")
+            monto_api    = fila.get("Monto", 0)
 
-            # Montos y modalidad solo para Postulando
+            st.markdown(f"**Temática detectada:** {tematica_api} · **Región:** {region_api} · **Monto estimado:** ${monto_api:,.0f}")
+
             monto_ofertado = 0
-            monto_disponible = 0
             modalidad = ""
             if estado == "Postulando":
-                col3, col4, col5 = st.columns(3)
-                with col3:
+                col1, col2 = st.columns(2)
+                with col1:
                     monto_ofertado = st.number_input("Monto ofertado ($)", min_value=0, step=100000)
-                with col4:
-                    monto_disponible = st.number_input("Monto disponible ($)", min_value=0, step=100000)
-                with col5:
+                with col2:
                     modalidad = st.selectbox("Modalidad", ["Online", "Presencial", "Híbrido"])
 
             if st.button("Confirmar y registrar en Notion", type="primary"):
                 ok = registrar_en_notion(
                     fila["Nombre"], fila["ID"], fila["Organismo"],
                     fila["Cierre"], estado,
-                    tematica, region,
-                    monto_disponible, monto_ofertado, modalidad
+                    tematica_api, region_api,
+                    monto_api, monto_ofertado, modalidad
                 )
                 if ok:
                     st.success(f"✅ '{fila['Nombre']}' registrada en Notion como **{estado}**.")
