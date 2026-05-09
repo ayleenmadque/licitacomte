@@ -39,7 +39,7 @@ def obtener_dia(dias_atras):
 
 def obtener_licitaciones():
     todas = []
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    with ThreadPoolExecutor(max_workers=3) as executor:
         futuros = {executor.submit(obtener_dia, d): d for d in range(0, 30)}
         for futuro in as_completed(futuros):
             todas.extend(futuro.result())
@@ -69,7 +69,7 @@ def obtener_detalle(codigo):
 
 def obtener_detalle_paralelo(codigos):
     resultados = {}
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    with ThreadPoolExecutor(max_workers=3) as executor:
         futuros = {executor.submit(obtener_detalle, c): c for c in codigos}
         for futuro in as_completed(futuros):
             codigo = futuros[futuro]
