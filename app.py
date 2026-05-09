@@ -32,16 +32,6 @@ PALABRAS_SCORE = [
     "transformacion digital", "herramientas digitales", "mejora continua"
 ]
 
-PALABRAS_TEMATICA = {
-    "Power BI":               ["power bi"],
-    "Excel":                  ["excel", "hojas de calculo"],
-    "IA":                     ["inteligencia artificial", " ia "],
-    "Office 365":             ["office 365"],
-    "Google Workspace":       ["google workspace"],
-    "Transformacion Digital": ["transformacion digital", "herramientas digitales"],
-    "Mejora Continua":        ["mejora continua"],
-}
-
 # ── Utilidades ────────────────────────────────────────────────────────────────
 def normalizar(texto):
     texto = texto.lower()
@@ -51,12 +41,6 @@ def normalizar(texto):
 
 def calcular_score(texto):
     return sum(1 for p in PALABRAS_SCORE if p in texto)
-
-def inferir_tematica(texto):
-    for tematica, palabras in PALABRAS_TEMATICA.items():
-        if any(p in texto for p in palabras):
-            return tematica
-    return "Transformacion Digital"
 
 # ── API Mercado Público ───────────────────────────────────────────────────────
 def obtener_licitaciones():
@@ -85,12 +69,12 @@ def obtener_detalle(codigo):
                 region    = l.get("Comprador", {}).get("RegionUnidad", "")
                 monto     = l.get("MontoEstimado", 0) or 0
                 items     = l.get("Items", {}).get("Listado", [])
-                texto     = " ".join([
+                productos = " ".join([
                     i.get("NombreProducto", "") + " " + i.get("Descripcion", "")
                     for i in items
                 ])
-                if organismo or texto:
-                    return normalizar(texto), organismo, region, monto
+                if organismo or productos:
+                    return normalizar(productos), organismo, region, monto
         except:
             pass
         time.sleep(2)
@@ -111,20 +95,18 @@ def procesar(licitaciones):
                 continue
             dias   = (cierre - datetime.now()).days
             codigo = l.get("CodigoExterno", "")
-            detalle_texto, organismo, region, monto = obtener_detalle(codigo)
-            score    = calcular_score(nombre) + calcular_score(detalle_texto)
-            tematica = inferir_tematica(nombre + " " + detalle_texto)
+            productos, organismo, region, monto = obtener_detalle(codigo)
+            score = calcular_score(nombre) + calcular_score(productos)
             resultado.append({
                 "Nombre":         l.get("Nombre", ""),
                 "ID":             codigo,
                 "Organismo":      organismo,
-                "Productos":      detalle_texto[:200] if detalle_texto else "",
+                "Productos":      productos[:200] if productos else "",
                 "Cierre":         cierre_str[:16].replace("T", " "),
                 "Dias restantes": dias,
                 "Score":          score,
                 "Region":         region,
                 "Monto":          monto,
-                "Tematica":       tematica,
             })
         except:
             pass
@@ -177,7 +159,6 @@ def leer_desde_supabase():
                 "Score":          f["score"],
                 "Region":         "",
                 "Monto":          0,
-                "Tematica":       "",
             }
             for f in (response.data or [])
         ]
@@ -203,7 +184,7 @@ def ultima_actualizacion_supabase():
 
 # ── Notion ────────────────────────────────────────────────────────────────────
 def registrar_en_notion(nombre, id_lic, organismo, cierre, estado,
-                         tematica="", region="",
+                         productos="", region="",
                          monto_disponible=0, monto_ofertado=0,
                          modalidad=""):
     headers = {
@@ -219,8 +200,9 @@ def registrar_en_notion(nombre, id_lic, organismo, cierre, estado,
         "Fecha Cierre":      {"date":      {"start": cierre[:10]}},
         "Fecha Postulacion": {"date":      {"start": datetime.now().strftime("%Y-%m-%d")}},
     }
-    if tematica:
-        properties["Temática"] = {"multi_select": [{"name": tematica}]}
+    if productos:
+        # Temática en Notion = texto de Productos (máx 100 chars por límite de select)
+        properties["Temática"] = {"multi_select": [{"name": productos[:100]}]}
     if region:
         properties["Region"] = {"rich_text": [{"text": {"content": region}}]}
     if monto_disponible:
@@ -337,14 +319,14 @@ if st.session_state.resultados:
                 st.rerun()
 
         if st.session_state.estado_accion:
-            estado    = st.session_state.estado_accion
-            icono     = "🟢" if estado == "Postulando" else "🟡"
-            tematica  = fila.get("Tematica", "")
+            estado   = st.session_state.estado_accion
+            icono    = "🟢" if estado == "Postulando" else "🟡"
+            productos = fila.get("Productos", "")
             region    = fila.get("Region", "")
             monto     = fila.get("Monto", 0)
 
             st.subheader(f"{icono} Registrar en Notion — {estado}")
-            st.markdown(f"**Temática:** {tematica or '—'} · **Región:** {region or '—'} · **Monto estimado:** ${monto:,.0f}")
+            st.markdown(f"**Productos:** {productos or '—'} · **Región:** {region or '—'} · **Monto estimado:** ${monto:,.0f}")
 
             monto_ofertado = 0
             modalidad = ""
@@ -359,7 +341,7 @@ if st.session_state.resultados:
                 ok = registrar_en_notion(
                     fila["Nombre"], fila["ID"], fila["Organismo"],
                     fila["Cierre"], estado,
-                    tematica, region,
+                    productos, region,
                     monto, monto_ofertado, modalidad
                 )
                 if ok:
