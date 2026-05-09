@@ -82,18 +82,13 @@ def obtener_detalle(codigo):
             if listado:
                 l = listado[0]
                 organismo = l.get("Comprador", {}).get("NombreOrganismo", "")
-                region    = l.get("Comprador", {}).get("Region", "")
+                region    = l.get("Comprador", {}).get("RegionUnidad", "")
                 monto     = l.get("MontoEstimado", 0) or 0
                 items     = l.get("Items", {}).get("Listado", [])
                 texto     = " ".join([
-                    i.get("NombreEspanol", "") + " " + i.get("Descripcion", "")
+                    i.get("NombreProducto", "") + " " + i.get("Descripcion", "")
                     for i in items
                 ])
-                # DEBUG: mostrar estructura completa de la primera licitación
-                if st.session_state.get("debug_mostrado") is False:
-                    with st.expander("🔍 DEBUG — estructura API (primera licitación)"):
-                        st.json(l)
-                    st.session_state.debug_mostrado = True
                 if organismo or texto:
                     return normalizar(texto), organismo, region, monto
         except:
@@ -105,8 +100,6 @@ def procesar(licitaciones):
     resultado = []
     barra = st.progress(0, text="Analizando licitaciones...")
     total = len(licitaciones)
-    st.session_state.debug_mostrado = False  # mostrar debug solo una vez
-
     for i, l in enumerate(licitaciones):
         nombre = normalizar(l.get("Nombre", ""))
         if not any(p in nombre for p in PALABRAS_BASE):
@@ -182,9 +175,9 @@ def leer_desde_supabase():
                 "Cierre":         f["cierre"],
                 "Dias restantes": f["dias_restantes"],
                 "Score":          f["score"],
-                "Region":         f.get("region", ""),
-                "Monto":          f.get("monto", 0),
-                "Tematica":       f.get("tematica", ""),
+                "Region":         "",
+                "Monto":          0,
+                "Tematica":       "",
             }
             for f in (response.data or [])
         ]
@@ -263,8 +256,6 @@ if "fila_seleccionada" not in st.session_state:
     st.session_state.fila_seleccionada = None
 if "estado_accion" not in st.session_state:
     st.session_state.estado_accion = None
-if "debug_mostrado" not in st.session_state:
-    st.session_state.debug_mostrado = True  # no mostrar hasta que se cargue
 
 if not st.session_state.cargado_desde_supabase:
     datos = leer_desde_supabase()
@@ -346,16 +337,14 @@ if st.session_state.resultados:
                 st.rerun()
 
         if st.session_state.estado_accion:
-            estado = st.session_state.estado_accion
-            icono = "🟢" if estado == "Postulando" else "🟡"
+            estado    = st.session_state.estado_accion
+            icono     = "🟢" if estado == "Postulando" else "🟡"
+            tematica  = fila.get("Tematica", "")
+            region    = fila.get("Region", "")
+            monto     = fila.get("Monto", 0)
+
             st.subheader(f"{icono} Registrar en Notion — {estado}")
-
-            # Mostrar datos inferidos de la API
-            tematica_api = fila.get("Tematica", "")
-            region_api   = fila.get("Region", "")
-            monto_api    = fila.get("Monto", 0)
-
-            st.markdown(f"**Temática detectada:** {tematica_api} · **Región:** {region_api} · **Monto estimado:** ${monto_api:,.0f}")
+            st.markdown(f"**Temática:** {tematica or '—'} · **Región:** {region or '—'} · **Monto estimado:** ${monto:,.0f}")
 
             monto_ofertado = 0
             modalidad = ""
@@ -370,8 +359,8 @@ if st.session_state.resultados:
                 ok = registrar_en_notion(
                     fila["Nombre"], fila["ID"], fila["Organismo"],
                     fila["Cierre"], estado,
-                    tematica_api, region_api,
-                    monto_api, monto_ofertado, modalidad
+                    tematica, region,
+                    monto, monto_ofertado, modalidad
                 )
                 if ok:
                     st.success(f"✅ '{fila['Nombre']}' registrada en Notion como **{estado}**.")
