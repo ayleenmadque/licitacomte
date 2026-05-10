@@ -74,11 +74,11 @@ def obtener_detalle(codigo):
                     for i in items
                 ])
                 if organismo or productos:
-                    return normalizar(productos), organismo, region, monto
+                    return normalizar(productos), organismo, region, monto, l
         except:
             pass
         time.sleep(2)
-    return "", "", "", 0
+    return "", "", "", 0, {}
 
 def procesar(licitaciones):
     resultado = []
@@ -95,7 +95,7 @@ def procesar(licitaciones):
                 continue
             dias   = (cierre - datetime.now()).days
             codigo = l.get("CodigoExterno", "")
-            productos, organismo, region, monto = obtener_detalle(codigo)
+            productos, organismo, region, monto, raw = obtener_detalle(codigo)
             score = calcular_score(nombre) + calcular_score(productos)
             resultado.append({
                 "Nombre":         l.get("Nombre", ""),
@@ -107,6 +107,7 @@ def procesar(licitaciones):
                 "Score":          score,
                 "Region":         region,
                 "Monto":          monto,
+                "_raw":           raw,
             })
         except:
             pass
@@ -159,6 +160,7 @@ def leer_desde_supabase():
                 "Score":          f["score"],
                 "Region":         "",
                 "Monto":          0,
+                "_raw":           {},
             }
             for f in (response.data or [])
         ]
@@ -225,11 +227,9 @@ def actualizar_postulacion(id_postulacion, campos):
 
 # ── UI ────────────────────────────────────────────────────────────────────────
 st.set_page_config(page_title="LicitaSimple", layout="wide")
-
 st.title("LicitaSimple")
 st.caption("Sistema de inteligencia de licitaciones — Perfil: COMTE")
 
-# Session state
 if "resultados" not in st.session_state:
     st.session_state.resultados = []
 if "cargado_desde_supabase" not in st.session_state:
@@ -239,19 +239,14 @@ if "fila_seleccionada" not in st.session_state:
 if "estado_accion" not in st.session_state:
     st.session_state.estado_accion = None
 
-# Carga automática desde Supabase
 if not st.session_state.cargado_desde_supabase:
     datos = leer_desde_supabase()
     if datos:
         st.session_state.resultados = datos
     st.session_state.cargado_desde_supabase = True
 
-# ── Tabs principales ──────────────────────────────────────────────────────────
 tab1, tab2 = st.tabs(["🔍 Oportunidades", "📋 Mis Postulaciones"])
 
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 1: OPORTUNIDADES
-# ══════════════════════════════════════════════════════════════════════════════
 with tab1:
     ultima = ultima_actualizacion_supabase()
     col_btn, col_info = st.columns([2, 3])
@@ -288,7 +283,7 @@ with tab1:
             df = df[mask]
             st.caption(f"{len(df)} resultados para '{busqueda}'")
 
-        df_display = df.reset_index(drop=True)
+        df_display = df.drop(columns=["_raw"]).reset_index(drop=True)
         df_display.index = range(1, len(df_display) + 1)
 
         st.caption("👆 Haz clic en una fila para seleccionarla")
@@ -301,7 +296,7 @@ with tab1:
 
         filas_sel = seleccion.selection.rows if seleccion.selection else []
         if filas_sel:
-            fila_nueva = df_display.iloc[filas_sel[0]].to_dict()
+            fila_nueva = df.iloc[filas_sel[0]].to_dict()
             if st.session_state.fila_seleccionada != fila_nueva:
                 st.session_state.fila_seleccionada = fila_nueva
                 st.session_state.estado_accion = None
@@ -335,12 +330,16 @@ with tab1:
                 if st.button("✖ Cancelar", use_container_width=True):
                     st.session_state.fila_seleccionada = None
                     st.rerun()
+
+            # ── DEBUG: ver documentos adjuntos ──
+            raw = fila.get("_raw", {})
+            if raw:
+                with st.expander("🔍 DEBUG — Estructura completa de la licitación"):
+                    st.json(raw)
+
     else:
         st.info("Presiona 'Cargar licitaciones' para comenzar.")
 
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 2: MIS POSTULACIONES (CRM)
-# ══════════════════════════════════════════════════════════════════════════════
 with tab2:
     postulaciones = leer_postulaciones()
 
