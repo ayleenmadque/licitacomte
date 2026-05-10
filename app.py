@@ -7,11 +7,9 @@ import unicodedata
 from supabase import create_client, Client
 
 # ── Credenciales ──────────────────────────────────────────────────────────────
-API_TICKET    = st.secrets["API_TICKET"]
-NOTION_TOKEN  = st.secrets["NOTION_TOKEN"]
-NOTION_DB     = "d4a6c914-eec5-4bb6-af35-2419ac70368d"
-SUPABASE_URL  = st.secrets["SUPABASE_URL"]
-SUPABASE_KEY  = st.secrets["SUPABASE_KEY"]
+API_TICKET   = st.secrets["API_TICKET"]
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 
 API_URL = "https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json"
 
@@ -31,6 +29,8 @@ PALABRAS_SCORE = [
     "google workspace", "office 365", "hojas de calculo",
     "transformacion digital", "herramientas digitales", "mejora continua"
 ]
+
+ESTADOS = ["De interés", "Postulando", "Adjudicada", "Perdida", "Desierta"]
 
 # ── Utilidades ────────────────────────────────────────────────────────────────
 def normalizar(texto):
@@ -114,7 +114,7 @@ def procesar(licitaciones):
     barra.empty()
     return sorted(resultado, key=lambda x: (-x["Score"], x["Dias restantes"]))
 
-# ── Supabase ──────────────────────────────────────────────────────────────────
+# ── Supabase: licitaciones ────────────────────────────────────────────────────
 def guardar_en_supabase(resultados):
     ahora = datetime.now().isoformat()
     filas = [
@@ -182,148 +182,244 @@ def ultima_actualizacion_supabase():
         pass
     return None
 
-# ── Notion ────────────────────────────────────────────────────────────────────
-def registrar_en_notion(nombre, id_lic, organismo, cierre, estado, productos="", region="", monto=0):
-    headers = {
-        "Authorization":  f"Bearer {NOTION_TOKEN}",
-        "Content-Type":   "application/json",
-        "Notion-Version": "2022-06-28"
-    }
-    properties = {
-        "Nombre":            {"title":     [{"text": {"content": nombre}}]},
-        "ID Licitacion":     {"rich_text": [{"text": {"content": id_lic}}]},
-        "Organismo":         {"rich_text": [{"text": {"content": organismo}}]},
-        "Estado":            {"select":    {"name": estado}},
-        "Fecha Cierre":      {"date":      {"start": cierre[:10]}},
-        "Fecha Postulacion": {"date":      {"start": datetime.now().strftime("%Y-%m-%d")}},
-    }
-    if productos:
-        properties["Temática"] = {"rich_text": [{"text": {"content": productos[:200]}}]}
-    if region:
-        properties["Region"] = {"rich_text": [{"text": {"content": region}}]}
-    if monto:
-        properties["Monto Disponible"] = {"number": monto}
-
-    data = {"parent": {"database_id": NOTION_DB}, "properties": properties}
+# ── Supabase: postulaciones ───────────────────────────────────────────────────
+def registrar_postulacion(fila, estado):
     try:
-        response = requests.post(
-            "https://api.notion.com/v1/pages",
-            headers=headers, json=data, timeout=15
-        )
-        if response.status_code != 200:
-            st.expander("🔍 Detalle del error Notion").json(response.json())
-        return response.status_code == 200
+        get_supabase().table("postulaciones").insert({
+            "codigo_externo":  fila["ID"],
+            "nombre":          fila["Nombre"],
+            "organismo":       fila["Organismo"],
+            "productos":       fila.get("Productos", ""),
+            "region":          fila.get("Region", ""),
+            "monto_estimado":  int(fila.get("Monto", 0)),
+            "cierre":          fila["Cierre"],
+            "estado":          estado,
+            "fecha_registro":  datetime.now().isoformat(),
+            "fecha_actualizacion": datetime.now().isoformat(),
+        }).execute()
+        return True
     except Exception as e:
-        st.error(f"Excepción al llamar Notion: {e}")
+        st.error(f"Error al registrar: {e}")
+        return False
+
+def leer_postulaciones():
+    try:
+        response = (
+            get_supabase().table("postulaciones")
+            .select("*")
+            .order("fecha_registro", desc=True)
+            .execute()
+        )
+        return response.data or []
+    except Exception as e:
+        st.warning(f"Error al leer postulaciones: {e}")
+        return []
+
+def actualizar_estado(id_postulacion, nuevo_estado):
+    try:
+        get_supabase().table("postulaciones").update({
+            "estado": nuevo_estado,
+            "fecha_actualizacion": datetime.now().isoformat()
+        }).eq("id", id_postulacion).execute()
+        return True
+    except:
+        return False
+
+def actualizar_postulacion(id_postulacion, campos):
+    try:
+        campos["fecha_actualizacion"] = datetime.now().isoformat()
+        get_supabase().table("postulaciones").update(campos).eq("id", id_postulacion).execute()
+        return True
+    except:
         return False
 
 # ── UI ────────────────────────────────────────────────────────────────────────
-st.set_page_config(page_title="LicitaComte", layout="wide")
-st.title("🏆 LicitaComte")
+st.set_page_config(page_title="LicitaSimple", layout="wide")
+st.title("🏆 LicitaSimple")
 st.caption("Sistema de inteligencia de licitaciones — Perfil: COMTE")
 
+# Session state
 if "resultados" not in st.session_state:
     st.session_state.resultados = []
 if "cargado_desde_supabase" not in st.session_state:
     st.session_state.cargado_desde_supabase = False
 if "fila_seleccionada" not in st.session_state:
     st.session_state.fila_seleccionada = None
+if "estado_accion" not in st.session_state:
+    st.session_state.estado_accion = None
 
+# Carga automática desde Supabase
 if not st.session_state.cargado_desde_supabase:
     datos = leer_desde_supabase()
     if datos:
         st.session_state.resultados = datos
     st.session_state.cargado_desde_supabase = True
 
-ultima = ultima_actualizacion_supabase()
-col_btn, col_info = st.columns([2, 3])
-with col_btn:
-    cargar = st.button("🔄 Cargar licitaciones desde API")
-with col_info:
-    if ultima:
-        st.info(f"📅 Última actualización: **{ultima}** — mostrando datos guardados")
-    else:
-        st.warning("Sin datos guardados. Presiona 'Cargar licitaciones' para comenzar.")
+# ── Tabs principales ──────────────────────────────────────────────────────────
+tab1, tab2 = st.tabs(["🔍 Oportunidades", "📋 Mis Postulaciones"])
 
-if cargar:
-    with st.spinner("Descargando licitaciones de los últimos 30 días..."):
-        licitaciones = obtener_licitaciones()
-    resultados = procesar(licitaciones)
-    if resultados:
-        with st.spinner("Guardando en Supabase..."):
-            ok = guardar_en_supabase(resultados)
-        st.session_state.resultados = resultados
-        st.session_state.fila_seleccionada = None
-        if ok:
-            st.success(f"✅ {len(resultados)} licitaciones procesadas y guardadas en Supabase.")
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 1: OPORTUNIDADES
+# ══════════════════════════════════════════════════════════════════════════════
+with tab1:
+    ultima = ultima_actualizacion_supabase()
+    col_btn, col_info = st.columns([2, 3])
+    with col_btn:
+        cargar = st.button("🔄 Cargar licitaciones desde API")
+    with col_info:
+        if ultima:
+            st.info(f"📅 Última actualización: **{ultima}** — mostrando datos guardados")
         else:
-            st.success(f"✅ {len(resultados)} licitaciones procesadas (sin guardar en Supabase).")
+            st.warning("Sin datos guardados. Presiona 'Cargar licitaciones' para comenzar.")
+
+    if cargar:
+        with st.spinner("Descargando licitaciones de los últimos 30 días..."):
+            licitaciones = obtener_licitaciones()
+        resultados = procesar(licitaciones)
+        if resultados:
+            with st.spinner("Guardando en Supabase..."):
+                ok = guardar_en_supabase(resultados)
+            st.session_state.resultados = resultados
+            st.session_state.fila_seleccionada = None
+            st.session_state.estado_accion = None
+            if ok:
+                st.success(f"✅ {len(resultados)} licitaciones procesadas y guardadas.")
+        else:
+            st.warning("No se encontraron licitaciones relevantes.")
+
+    if st.session_state.resultados:
+        st.success(f"{len(st.session_state.resultados)} licitaciones vigentes")
+        df = pd.DataFrame(st.session_state.resultados)
+
+        busqueda = st.text_input("🔍 Buscar dentro de los resultados", placeholder="Ej: excel, power bi, Santiago...")
+        if busqueda:
+            mask = df.apply(lambda row: row.astype(str).str.contains(busqueda, case=False).any(), axis=1)
+            df = df[mask]
+            st.caption(f"{len(df)} resultados para '{busqueda}'")
+
+        df_display = df.reset_index(drop=True)
+        df_display.index = range(1, len(df_display) + 1)
+
+        st.caption("👆 Haz clic en una fila para seleccionarla")
+        seleccion = st.dataframe(
+            df_display,
+            use_container_width=True,
+            on_select="rerun",
+            selection_mode="single-row",
+        )
+
+        filas_sel = seleccion.selection.rows if seleccion.selection else []
+        if filas_sel:
+            fila_nueva = df_display.iloc[filas_sel[0]].to_dict()
+            if st.session_state.fila_seleccionada != fila_nueva:
+                st.session_state.fila_seleccionada = fila_nueva
+                st.session_state.estado_accion = None
+
+        if st.session_state.fila_seleccionada:
+            fila = st.session_state.fila_seleccionada
+            st.divider()
+            st.markdown(f"**✅ Seleccionada:** {fila['Nombre']}  \n`{fila['ID']}` · {fila['Organismo']} · Cierre: {fila['Cierre']}")
+            st.markdown(f"**Productos:** {fila.get('Productos','—')} · **Región:** {fila.get('Region','—')} · **Monto:** ${fila.get('Monto',0):,.0f}")
+
+            col_verde, col_amarillo, col_cancel = st.columns([2, 2, 3])
+            with col_verde:
+                if st.button("🟢 Postulando", use_container_width=True):
+                    ok = registrar_postulacion(fila, "Postulando")
+                    if ok:
+                        st.success(f"✅ '{fila['Nombre']}' registrada como **Postulando**.")
+                        st.session_state.fila_seleccionada = None
+                    else:
+                        st.error("Error al registrar.")
+
+            with col_amarillo:
+                if st.button("🟡 De interés", use_container_width=True):
+                    ok = registrar_postulacion(fila, "De interés")
+                    if ok:
+                        st.success(f"⭐ '{fila['Nombre']}' registrada como **De interés**.")
+                        st.session_state.fila_seleccionada = None
+                    else:
+                        st.error("Error al registrar.")
+
+            with col_cancel:
+                if st.button("✖ Cancelar", use_container_width=True):
+                    st.session_state.fila_seleccionada = None
+                    st.rerun()
     else:
-        st.warning("No se encontraron licitaciones relevantes.")
+        st.info("Presiona 'Cargar licitaciones' para comenzar.")
 
-if st.session_state.resultados:
-    st.success(f"{len(st.session_state.resultados)} licitaciones vigentes")
-    df = pd.DataFrame(st.session_state.resultados)
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 2: MIS POSTULACIONES (CRM)
+# ══════════════════════════════════════════════════════════════════════════════
+with tab2:
+    postulaciones = leer_postulaciones()
 
-    busqueda = st.text_input("🔍 Buscar dentro de los resultados", placeholder="Ej: excel, power bi, Santiago...")
-    if busqueda:
-        mask = df.apply(lambda row: row.astype(str).str.contains(busqueda, case=False).any(), axis=1)
-        df = df[mask]
-        st.caption(f"{len(df)} resultados para '{busqueda}'")
+    if not postulaciones:
+        st.info("Aún no tienes postulaciones registradas.")
+    else:
+        # Métricas
+        df_post = pd.DataFrame(postulaciones)
+        col1, col2, col3, col4, col5 = st.columns(5)
+        for estado, col, emoji in zip(
+            ESTADOS,
+            [col1, col2, col3, col4, col5],
+            ["⭐", "🟢", "✅", "❌", "⬜"]
+        ):
+            count = len(df_post[df_post["estado"] == estado])
+            col.metric(f"{emoji} {estado}", count)
 
-    df_display = df.reset_index(drop=True)
-    df_display.index = range(1, len(df_display) + 1)
-
-    st.caption("👆 Haz clic en una fila para seleccionarla")
-    seleccion = st.dataframe(
-        df_display,
-        use_container_width=True,
-        on_select="rerun",
-        selection_mode="single-row",
-    )
-
-    filas_sel = seleccion.selection.rows if seleccion.selection else []
-    if filas_sel:
-        fila_nueva = df_display.iloc[filas_sel[0]].to_dict()
-        if st.session_state.fila_seleccionada != fila_nueva:
-            st.session_state.fila_seleccionada = fila_nueva
-
-    if st.session_state.fila_seleccionada:
-        fila = st.session_state.fila_seleccionada
         st.divider()
-        st.markdown(f"**✅ Seleccionada:** {fila['Nombre']}  \n`{fila['ID']}` · {fila['Organismo']} · Cierre: {fila['Cierre']}")
-        st.markdown(f"**Productos:** {fila.get('Productos','—')} · **Región:** {fila.get('Region','—')} · **Monto:** ${fila.get('Monto',0):,.0f}")
 
-        col_verde, col_amarillo, col_cancel = st.columns([2, 2, 3])
-        with col_verde:
-            if st.button("🟢 Postulando", use_container_width=True):
-                ok = registrar_en_notion(
-                    fila["Nombre"], fila["ID"], fila["Organismo"],
-                    fila["Cierre"], "Postulando",
-                    fila.get("Productos", ""), fila.get("Region", ""), fila.get("Monto", 0)
-                )
+        # Filtro por estado
+        filtro = st.selectbox("Filtrar por estado", ["Todos"] + ESTADOS)
+        if filtro != "Todos":
+            df_filtrado = df_post[df_post["estado"] == filtro]
+        else:
+            df_filtrado = df_post
+
+        # Tabla CRM
+        columnas_mostrar = ["nombre", "organismo", "region", "estado", "monto_estimado", "monto_ofertado", "monto_adjudicado", "cierre", "notas"]
+        df_vista = df_filtrado[columnas_mostrar].copy()
+        df_vista.columns = ["Nombre", "Organismo", "Región", "Estado", "Monto Estimado", "Monto Ofertado", "Monto Adjudicado", "Cierre", "Notas"]
+        df_vista.index = range(1, len(df_vista) + 1)
+
+        seleccion_crm = st.dataframe(
+            df_vista,
+            use_container_width=True,
+            on_select="rerun",
+            selection_mode="single-row",
+        )
+
+        # Editar registro seleccionado
+        filas_crm = seleccion_crm.selection.rows if seleccion_crm.selection else []
+        if filas_crm:
+            idx = filas_crm[0]
+            registro = df_filtrado.iloc[idx]
+            id_reg = int(registro["id"])
+
+            st.divider()
+            st.subheader(f"✏️ Editar: {registro['nombre'][:60]}...")
+
+            col_a, col_b = st.columns(2)
+            with col_a:
+                nuevo_estado = st.selectbox("Estado", ESTADOS, index=ESTADOS.index(registro["estado"]))
+                monto_ofertado = st.number_input("Monto ofertado ($)", value=int(registro.get("monto_ofertado") or 0), step=100000)
+            with col_b:
+                monto_adjudicado = st.number_input("Monto adjudicado ($)", value=int(registro.get("monto_adjudicado") or 0), step=100000)
+                modalidad = st.selectbox("Modalidad", ["", "Online", "Presencial", "Híbrido"],
+                    index=["", "Online", "Presencial", "Híbrido"].index(registro.get("modalidad") or ""))
+
+            notas = st.text_area("Notas", value=registro.get("notas") or "")
+
+            if st.button("💾 Guardar cambios", type="primary"):
+                ok = actualizar_postulacion(id_reg, {
+                    "estado":           nuevo_estado,
+                    "monto_ofertado":   monto_ofertado,
+                    "monto_adjudicado": monto_adjudicado,
+                    "modalidad":        modalidad,
+                    "notas":            notas,
+                })
                 if ok:
-                    st.success(f"✅ '{fila['Nombre']}' registrada como **Postulando** en Notion.")
-                    st.session_state.fila_seleccionada = None
+                    st.success("✅ Cambios guardados.")
+                    st.rerun()
                 else:
-                    st.error("Error al registrar en Notion.")
-
-        with col_amarillo:
-            if st.button("🟡 De interés", use_container_width=True):
-                ok = registrar_en_notion(
-                    fila["Nombre"], fila["ID"], fila["Organismo"],
-                    fila["Cierre"], "De interés",
-                    fila.get("Productos", ""), fila.get("Region", ""), fila.get("Monto", 0)
-                )
-                if ok:
-                    st.success(f"⭐ '{fila['Nombre']}' registrada como **De interés** en Notion.")
-                    st.session_state.fila_seleccionada = None
-                else:
-                    st.error("Error al registrar en Notion.")
-
-        with col_cancel:
-            if st.button("✖ Cancelar", use_container_width=True):
-                st.session_state.fila_seleccionada = None
-                st.rerun()
-else:
-    st.info("Presiona 'Cargar licitaciones' para comenzar.")
+                    st.error("Error al guardar.")
