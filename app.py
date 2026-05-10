@@ -215,16 +215,6 @@ def leer_postulaciones():
         st.warning(f"Error al leer postulaciones: {e}")
         return []
 
-def actualizar_estado(id_postulacion, nuevo_estado):
-    try:
-        get_supabase().table("postulaciones").update({
-            "estado": nuevo_estado,
-            "fecha_actualizacion": datetime.now().isoformat()
-        }).eq("id", id_postulacion).execute()
-        return True
-    except:
-        return False
-
 def actualizar_postulacion(id_postulacion, campos):
     try:
         campos["fecha_actualizacion"] = datetime.now().isoformat()
@@ -235,7 +225,13 @@ def actualizar_postulacion(id_postulacion, campos):
 
 # ── UI ────────────────────────────────────────────────────────────────────────
 st.set_page_config(page_title="LicitaSimple", layout="wide")
-st.title("🏆 LicitaSimple")
+
+# Header con logo
+col_logo, col_titulo = st.columns([1, 8])
+with col_logo:
+    st.image("solo_logo_comte.png", width=60)
+with col_titulo:
+    st.title("LicitaSimple")
 st.caption("Sistema de inteligencia de licitaciones — Perfil: COMTE")
 
 # Session state
@@ -356,7 +352,6 @@ with tab2:
     if not postulaciones:
         st.info("Aún no tienes postulaciones registradas.")
     else:
-        # Métricas
         df_post = pd.DataFrame(postulaciones)
         col1, col2, col3, col4, col5 = st.columns(5)
         for estado, col, emoji in zip(
@@ -369,14 +364,12 @@ with tab2:
 
         st.divider()
 
-        # Filtro por estado
         filtro = st.selectbox("Filtrar por estado", ["Todos"] + ESTADOS)
         if filtro != "Todos":
             df_filtrado = df_post[df_post["estado"] == filtro]
         else:
             df_filtrado = df_post
 
-        # Tabla CRM
         columnas_mostrar = ["nombre", "organismo", "region", "estado", "monto_estimado", "monto_ofertado", "monto_adjudicado", "cierre", "notas"]
         df_vista = df_filtrado[columnas_mostrar].copy()
         df_vista.columns = ["Nombre", "Organismo", "Región", "Estado", "Monto Estimado", "Monto Ofertado", "Monto Adjudicado", "Cierre", "Notas"]
@@ -389,7 +382,6 @@ with tab2:
             selection_mode="single-row",
         )
 
-        # Editar registro seleccionado
         filas_crm = seleccion_crm.selection.rows if seleccion_crm.selection else []
         if filas_crm:
             idx = filas_crm[0]
