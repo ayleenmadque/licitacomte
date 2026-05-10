@@ -227,11 +227,11 @@ def actualizar_postulacion(id_postulacion, campos):
 st.set_page_config(page_title="LicitaSimple", layout="wide")
 
 # Header con logo
-col_logo, col_titulo = st.columns([1, 8])
+col_logo, col_titulo = st.columns([1, 10])
 with col_logo:
-    st.image("solo_logo_comte.png", width=60)
+    st.image("solo_logo_comte.png", width=80)
 with col_titulo:
-    st.title("LicitaSimple")
+    st.markdown("<h1 style='margin-top:10px;'>LicitaSimple</h1>", unsafe_allow_html=True)
 st.caption("Sistema de inteligencia de licitaciones — Perfil: COMTE")
 
 # Session state
