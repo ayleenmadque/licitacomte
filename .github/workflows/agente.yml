@@ -1,0 +1,30 @@
+name: Agente LicitaSimple
+
+on:
+  schedule:
+    - cron: '0 10 * * *'   # 07:00 hora Chile (UTC-3)
+    - cron: '0 16 * * *'   # 13:00 hora Chile (UTC-3)
+  workflow_dispatch:         # permite ejecutarlo manualmente desde GitHub
+
+jobs:
+  ejecutar-agente:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repositorio
+        uses: actions/checkout@v3
+
+      - name: Instalar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependencias
+        run: pip install requests supabase
+
+      - name: Ejecutar agente
+        env:
+          API_TICKET: ${{ secrets.API_TICKET }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python agente.py
