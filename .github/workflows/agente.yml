@@ -2,9 +2,11 @@ name: Agente LicitaSimple
 
 on:
   schedule:
-    - cron: '0 10 * * *'   # 07:00 hora Chile (UTC-3)
-    - cron: '0 16 * * *'   # 13:00 hora Chile (UTC-3)
-  workflow_dispatch:         # permite ejecutarlo manualmente desde GitHub
+    - cron: '0 9 * * *'    # 06:00 hora Chile (UTC-3)
+    - cron: '0 15 * * *'   # 12:00 hora Chile (UTC-3)
+    - cron: '0 21 * * *'   # 18:00 hora Chile (UTC-3)
+    - cron: '0 3 * * *'    # 00:00 hora Chile (UTC-3)
+  workflow_dispatch:        # permite ejecutarlo manualmente desde GitHub
 
 jobs:
   ejecutar-agente:
