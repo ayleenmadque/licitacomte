@@ -574,7 +574,7 @@ Sé directo, concreto y usa los datos reales de arriba cuando sea relevante."""
             with st.spinner("Analizando..."):
                 try:
                     genai.configure(api_key=GEMINI_API_KEY)
-                    model = genai.GenerativeModel("gemini-2.0-flash")
+                    model = genai.GenerativeModel("gemini-1.5-flash-latest")
 
                     gemini_history = []
                     for msg in st.session_state.chat_history[:-1]:
