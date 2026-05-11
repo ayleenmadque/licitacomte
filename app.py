@@ -141,7 +141,7 @@ def guardar_en_supabase(resultados):
 
 def leer_desde_supabase():
     try:
-        hoy = datetime.now().strftime("%Y-%m-%d %H:%M")
+        hoy = datetime.now().strftime("%Y-%m-%d")
         response = (
             get_supabase().table("licitaciones")
             .select("*")
