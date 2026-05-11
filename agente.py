@@ -81,7 +81,7 @@ def obtener_adjudicaciones():
     for dias_atras in range(0, 30):
         try:
             fecha = (datetime.now() - timedelta(days=dias_atras)).strftime("%d%m%Y")
-            params = {"ticket": API_TICKET, "fecha": fecha, "estado": "adjudicada"}
+            params = {"ticket": API_TICKET, "fecha": fecha, "estado": "5"}
             response = requests.get(API_URL, params=params, timeout=30)
             todas.extend(response.json().get("Listado", []))
             time.sleep(0.3)
