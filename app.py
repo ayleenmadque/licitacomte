@@ -232,6 +232,7 @@ def leer_historico(palabras_clave=None):
         query = get_supabase().table("historico_adjudicaciones").select("*")
         response = query.order("fecha_adjudicacion", desc=True).limit(500).execute()
         datos = response.data or []
+
         if palabras_clave and datos:
             palabras = [normalizar(p.strip()) for p in palabras_clave.split(",") if p.strip()]
             datos = [
@@ -247,18 +248,23 @@ def leer_historico(palabras_clave=None):
 def calcular_metricas(datos):
     if not datos:
         return None
+
     montos = [d["monto_adjudicado"] for d in datos if d.get("monto_adjudicado", 0) > 0]
     oferentes = [d["numero_oferentes"] for d in datos if d.get("numero_oferentes", 0) > 0]
     empresas = [d["empresa_adjudicada"] for d in datos if d.get("empresa_adjudicada", "")]
+
     if not montos:
         return None
+
     promedio = sum(montos) / len(montos)
     minimo   = min(montos)
     maximo   = max(montos)
     prom_oferentes = sum(oferentes) / len(oferentes) if oferentes else 0
+
     from collections import Counter
     top_empresas = Counter(empresas).most_common(5)
     recomendacion = promedio * 0.95
+
     return {
         "total":           len(datos),
         "promedio":        promedio,
@@ -328,13 +334,16 @@ with tab1:
     if st.session_state.resultados:
         st.success(f"{len(st.session_state.resultados)} licitaciones vigentes")
         df = pd.DataFrame(st.session_state.resultados)
+
         busqueda = st.text_input("🔍 Buscar dentro de los resultados", placeholder="Ej: excel, power bi, Santiago...")
         if busqueda:
             mask = df.apply(lambda row: row.astype(str).str.contains(busqueda, case=False).any(), axis=1)
             df = df[mask]
             st.caption(f"{len(df)} resultados para '{busqueda}'")
+
         df_display = df.drop(columns=["_raw"]).reset_index(drop=True)
         df_display.index = range(1, len(df_display) + 1)
+
         st.caption("👆 Haz clic en una fila para seleccionarla")
         seleccion = st.dataframe(
             df_display,
@@ -342,17 +351,20 @@ with tab1:
             on_select="rerun",
             selection_mode="single-row",
         )
+
         filas_sel = seleccion.selection.rows if seleccion.selection else []
         if filas_sel:
             fila_nueva = df.iloc[filas_sel[0]].to_dict()
             if st.session_state.fila_seleccionada != fila_nueva:
                 st.session_state.fila_seleccionada = fila_nueva
                 st.session_state.estado_accion = None
+
         if st.session_state.fila_seleccionada:
             fila = st.session_state.fila_seleccionada
             st.divider()
             st.markdown(f"**✅ Seleccionada:** {fila['Nombre']}  \n`{fila['ID']}` · {fila['Organismo']} · Cierre: {fila['Cierre']}")
             st.markdown(f"**Productos:** {fila.get('Productos','—')} · **Región:** {fila.get('Region','—')} · **Monto:** ${fila.get('Monto',0):,.0f}")
+
             col_verde, col_amarillo, col_cancel = st.columns([2, 2, 3])
             with col_verde:
                 if st.button("🟢 Postulando", use_container_width=True):
@@ -362,6 +374,7 @@ with tab1:
                         st.session_state.fila_seleccionada = None
                     else:
                         st.error("Error al registrar.")
+
             with col_amarillo:
                 if st.button("🟡 De interés", use_container_width=True):
                     ok = registrar_postulacion(fila, "De interés")
@@ -370,20 +383,24 @@ with tab1:
                         st.session_state.fila_seleccionada = None
                     else:
                         st.error("Error al registrar.")
+
             with col_cancel:
                 if st.button("✖ Cancelar", use_container_width=True):
                     st.session_state.fila_seleccionada = None
                     st.rerun()
+
             raw = fila.get("_raw", {})
             if raw:
                 with st.expander("🔍 DEBUG — Estructura completa de la licitación"):
                     st.json(raw)
+
     else:
         st.info("Presiona 'Cargar licitaciones' para comenzar.")
 
 # ── Tab 2: Mis Postulaciones ──────────────────────────────────────────────────
 with tab2:
     postulaciones = leer_postulaciones()
+
     if not postulaciones:
         st.info("Aún no tienes postulaciones registradas.")
     else:
@@ -396,29 +413,36 @@ with tab2:
         ):
             count = len(df_post[df_post["estado"] == estado])
             col.metric(f"{emoji} {estado}", count)
+
         st.divider()
+
         filtro = st.selectbox("Filtrar por estado", ["Todos"] + ESTADOS)
         if filtro != "Todos":
             df_filtrado = df_post[df_post["estado"] == filtro]
         else:
             df_filtrado = df_post
+
         columnas_mostrar = ["nombre", "organismo", "region", "estado", "monto_estimado", "monto_ofertado", "monto_adjudicado", "cierre", "notas"]
         df_vista = df_filtrado[columnas_mostrar].copy()
         df_vista.columns = ["Nombre", "Organismo", "Región", "Estado", "Monto Estimado", "Monto Ofertado", "Monto Adjudicado", "Cierre", "Notas"]
         df_vista.index = range(1, len(df_vista) + 1)
+
         seleccion_crm = st.dataframe(
             df_vista,
             use_container_width=True,
             on_select="rerun",
             selection_mode="single-row",
         )
+
         filas_crm = seleccion_crm.selection.rows if seleccion_crm.selection else []
         if filas_crm:
             idx = filas_crm[0]
             registro = df_filtrado.iloc[idx]
             id_reg = int(registro["id"])
+
             st.divider()
             st.subheader(f"✏️ Editar: {registro['nombre'][:60]}...")
+
             col_a, col_b = st.columns(2)
             with col_a:
                 nuevo_estado = st.selectbox("Estado", ESTADOS, index=ESTADOS.index(registro["estado"]))
@@ -427,7 +451,9 @@ with tab2:
                 monto_adjudicado = st.number_input("Monto adjudicado ($)", value=int(registro.get("monto_adjudicado") or 0), step=100000)
                 modalidad = st.selectbox("Modalidad", ["", "Online", "Presencial", "Híbrido"],
                     index=["", "Online", "Presencial", "Híbrido"].index(registro.get("modalidad") or ""))
+
             notas = st.text_area("Notas", value=registro.get("notas") or "")
+
             if st.button("💾 Guardar cambios", type="primary"):
                 ok = actualizar_postulacion(id_reg, {
                     "estado":           nuevo_estado,
@@ -446,6 +472,7 @@ with tab2:
 with tab3:
     st.subheader("📊 Inteligencia de Mercado")
     st.caption("Análisis histórico de licitaciones adjudicadas similares a tu perfil")
+
     col_busq, col_btn3 = st.columns([3, 1])
     with col_busq:
         keywords = st.text_input(
@@ -455,29 +482,37 @@ with tab3:
         )
     with col_btn3:
         buscar_historico = st.button("🔍 Analizar", use_container_width=True)
+
     if buscar_historico or keywords:
         datos = leer_historico(keywords)
+
         if not datos:
             st.warning("No hay datos históricos aún. El agente los cargará en la próxima corrida.")
         else:
             metricas = calcular_metricas(datos)
+
             if metricas:
                 st.divider()
                 st.markdown(f"**{metricas['total']} licitaciones adjudicadas** encontradas para: `{keywords}`")
+
                 col_m1, col_m2, col_m3, col_m4 = st.columns(4)
                 col_m1.metric("💰 Monto promedio", f"${metricas['promedio']:,.0f}")
                 col_m2.metric("📉 Monto mínimo",   f"${metricas['minimo']:,.0f}")
                 col_m3.metric("📈 Monto máximo",   f"${metricas['maximo']:,.0f}")
                 col_m4.metric("👥 Oferentes promedio", f"{metricas['prom_oferentes']:.1f}")
+
                 st.divider()
                 col_rec, col_emp = st.columns([1, 1])
+
                 with col_rec:
                     st.markdown("### 🎯 Recomendación de precio")
                     st.info(f"Para ser competitivo, considera ofertar alrededor de **${metricas['recomendacion']:,.0f}** (5% bajo el promedio adjudicado)")
+
                 with col_emp:
                     st.markdown("### 🏆 Empresas que más ganan")
                     for empresa, veces in metricas["top_empresas"]:
                         st.markdown(f"- **{empresa}** — {veces} adjudicación{'es' if veces > 1 else ''}")
+
                 st.divider()
                 st.markdown("### 📋 Detalle de adjudicaciones")
                 df_hist = pd.DataFrame(datos)
@@ -539,18 +574,22 @@ Sé directo, concreto y usa los datos reales de arriba cuando sea relevante."""
             with st.spinner("Analizando..."):
                 try:
                     genai.configure(api_key=GEMINI_API_KEY)
-                    model = genai.GenerativeModel("gemini-1.5-flash")
+                    model = genai.GenerativeModel("gemini-2.0-flash")
+
                     gemini_history = []
                     for msg in st.session_state.chat_history[:-1]:
                         gemini_history.append({
                             "role": "user" if msg["role"] == "user" else "model",
                             "parts": [msg["content"]]
                         })
+
                     chat = model.start_chat(history=gemini_history)
                     response = chat.send_message(f"{SYSTEM_PROMPT}\n\nUsuario: {prompt}")
                     respuesta = response.text
+
                 except Exception as e:
                     respuesta = f"Error al conectar con Gemini: {e}"
+
                 st.markdown(respuesta)
                 st.session_state.chat_history.append({"role": "assistant", "content": respuesta})
 
