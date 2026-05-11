@@ -227,18 +227,24 @@ def actualizar_postulacion(id_postulacion, campos):
         return False
 
 # Supabase: historico adjudicaciones
-def leer_historico(palabras_clave=None):
+def leer_historico(nombre=None, productos=None):
     try:
         query = get_supabase().table("historico_adjudicaciones").select("*")
         response = query.order("fecha_adjudicacion", desc=True).limit(500).execute()
         datos = response.data or []
-        if palabras_clave and datos:
-            palabras = [normalizar(p.strip()) for p in palabras_clave.split(",") if p.strip()]
-            datos = [
-                d for d in datos
-                if any(p in normalizar(d.get("nombre", "") + " " + d.get("productos", ""))
-                       for p in palabras)
-            ]
+
+        if (nombre or productos) and datos:
+            texto_busqueda = normalizar((nombre or "") + " " + (productos or ""))
+            palabras = [p for p in texto_busqueda.split() if len(p) > 3]
+
+            def puntaje(d):
+                texto_hist = normalizar(d.get("nombre", "") + " " + d.get("productos", ""))
+                return sum(1 for p in palabras if p in texto_hist)
+
+            datos = [(d, puntaje(d)) for d in datos]
+            datos = [d for d, pts in datos if pts >= 2]
+            datos = sorted(datos, key=lambda d: puntaje(d), reverse=True)[:20]
+
         return datos
     except Exception as e:
         st.warning(f"Error al leer historico: {e}")
@@ -269,13 +275,7 @@ def calcular_metricas(datos):
         "recomendacion":   recomendacion,
     }
 
-def extraer_keywords(nombre, productos):
-    texto = normalizar(nombre + " " + (productos or ""))
-    keywords = []
-    for p in PALABRAS_BASE + PALABRAS_SCORE:
-        if p in texto and p not in keywords:
-            keywords.append(p)
-    return ", ".join(keywords[:3]) if keywords else normalizar(nombre)[:30]
+
 
 # UI
 st.set_page_config(page_title="LicitaSimple", layout="wide")
@@ -467,8 +467,7 @@ with tab3:
 
         st.divider()
 
-        keywords = extraer_keywords(fila["Nombre"], fila.get("Productos", ""))
-        datos = leer_historico(keywords)
+        datos = leer_historico(nombre=fila["Nombre"], productos=fila.get("Productos", ""))
 
         if not datos:
             st.warning("No hay datos historicos similares aun. El agente los cargara en la proxima corrida.")
