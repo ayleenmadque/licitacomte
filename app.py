@@ -225,6 +225,58 @@ def actualizar_postulacion(id_postulacion, campos):
     except:
         return False
 
+# ── Supabase: histórico adjudicaciones ───────────────────────────────────────
+def leer_historico(palabras_clave=None):
+    try:
+        query = get_supabase().table("historico_adjudicaciones").select("*")
+        response = query.order("fecha_adjudicacion", desc=True).limit(500).execute()
+        datos = response.data or []
+
+        if palabras_clave and datos:
+            palabras = [normalizar(p.strip()) for p in palabras_clave.split(",") if p.strip()]
+            datos = [
+                d for d in datos
+                if any(p in normalizar(d.get("nombre", "") + " " + d.get("productos", ""))
+                       for p in palabras)
+            ]
+        return datos
+    except Exception as e:
+        st.warning(f"Error al leer histórico: {e}")
+        return []
+
+def calcular_metricas(datos):
+    if not datos:
+        return None
+
+    montos = [d["monto_adjudicado"] for d in datos if d.get("monto_adjudicado", 0) > 0]
+    oferentes = [d["numero_oferentes"] for d in datos if d.get("numero_oferentes", 0) > 0]
+    empresas = [d["empresa_adjudicada"] for d in datos if d.get("empresa_adjudicada", "")]
+
+    if not montos:
+        return None
+
+    promedio = sum(montos) / len(montos)
+    minimo   = min(montos)
+    maximo   = max(montos)
+    prom_oferentes = sum(oferentes) / len(oferentes) if oferentes else 0
+
+    # Empresas más frecuentes
+    from collections import Counter
+    top_empresas = Counter(empresas).most_common(5)
+
+    # Recomendación de precio: 5% bajo el promedio
+    recomendacion = promedio * 0.95
+
+    return {
+        "total":           len(datos),
+        "promedio":        promedio,
+        "minimo":          minimo,
+        "maximo":          maximo,
+        "prom_oferentes":  prom_oferentes,
+        "top_empresas":    top_empresas,
+        "recomendacion":   recomendacion,
+    }
+
 # ── UI ────────────────────────────────────────────────────────────────────────
 st.set_page_config(page_title="LicitaSimple", layout="wide")
 st.title("LicitaSimple")
@@ -245,7 +297,7 @@ if not st.session_state.cargado_desde_supabase:
         st.session_state.resultados = datos
     st.session_state.cargado_desde_supabase = True
 
-tab1, tab2 = st.tabs(["🔍 Oportunidades", "📋 Mis Postulaciones"])
+tab1, tab2, tab3 = st.tabs(["🔍 Oportunidades", "📋 Mis Postulaciones", "📊 Inteligencia de Mercado"])
 
 with tab1:
     ultima = ultima_actualizacion_supabase()
@@ -331,7 +383,6 @@ with tab1:
                     st.session_state.fila_seleccionada = None
                     st.rerun()
 
-            # ── DEBUG: ver documentos adjuntos ──
             raw = fila.get("_raw", {})
             if raw:
                 with st.expander("🔍 DEBUG — Estructura completa de la licitación"):
@@ -409,3 +460,56 @@ with tab2:
                     st.rerun()
                 else:
                     st.error("Error al guardar.")
+
+with tab3:
+    st.subheader("📊 Inteligencia de Mercado")
+    st.caption("Análisis histórico de licitaciones adjudicadas similares a tu perfil")
+
+    col_busq, col_btn3 = st.columns([3, 1])
+    with col_busq:
+        keywords = st.text_input(
+            "Palabras clave para analizar",
+            value="capacitacion, taller, curso",
+            placeholder="Ej: capacitacion, excel, power bi"
+        )
+    with col_btn3:
+        buscar_historico = st.button("🔍 Analizar", use_container_width=True)
+
+    if buscar_historico or keywords:
+        datos = leer_historico(keywords)
+
+        if not datos:
+            st.warning("No hay datos históricos aún. El agente los cargará en la próxima corrida.")
+        else:
+            metricas = calcular_metricas(datos)
+
+            if metricas:
+                st.divider()
+                st.markdown(f"**{metricas['total']} licitaciones adjudicadas** encontradas para: `{keywords}`")
+
+                col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+                col_m1.metric("💰 Monto promedio", f"${metricas['promedio']:,.0f}")
+                col_m2.metric("📉 Monto mínimo",   f"${metricas['minimo']:,.0f}")
+                col_m3.metric("📈 Monto máximo",   f"${metricas['maximo']:,.0f}")
+                col_m4.metric("👥 Oferentes promedio", f"{metricas['prom_oferentes']:.1f}")
+
+                st.divider()
+                col_rec, col_emp = st.columns([1, 1])
+
+                with col_rec:
+                    st.markdown("### 🎯 Recomendación de precio")
+                    st.info(f"Para ser competitivo, considera ofertar alrededor de **${metricas['recomendacion']:,.0f}** (5% bajo el promedio adjudicado)")
+
+                with col_emp:
+                    st.markdown("### 🏆 Empresas que más ganan")
+                    for empresa, veces in metricas["top_empresas"]:
+                        st.markdown(f"- **{empresa}** — {veces} adjudicación{'es' if veces > 1 else ''}")
+
+                st.divider()
+                st.markdown("### 📋 Detalle de adjudicaciones")
+                df_hist = pd.DataFrame(datos)
+                columnas_hist = ["nombre", "organismo", "region", "monto_adjudicado", "empresa_adjudicada", "numero_oferentes", "fecha_adjudicacion"]
+                df_hist_vista = df_hist[columnas_hist].copy()
+                df_hist_vista.columns = ["Nombre", "Organismo", "Región", "Monto Adjudicado", "Empresa Ganadora", "N° Oferentes", "Fecha"]
+                df_hist_vista.index = range(1, len(df_hist_vista) + 1)
+                st.dataframe(df_hist_vista, use_container_width=True)
