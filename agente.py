@@ -36,7 +36,7 @@ def normalizar(texto):
 def calcular_score(texto):
     return sum(1 for p in PALABRAS_SCORE if p in texto)
 
-# ── Descargar licitaciones ────────────────────────────────────────────────────
+# ── Descargar licitaciones vigentes ──────────────────────────────────────────
 def obtener_licitaciones():
     todas = []
     for dias_atras in range(0, 30):
@@ -75,7 +75,74 @@ def obtener_detalle(codigo):
         time.sleep(2)
     return "", "", "", 0
 
-# ── Procesar y guardar ────────────────────────────────────────────────────────
+# ── Descargar adjudicaciones históricas ──────────────────────────────────────
+def obtener_adjudicaciones():
+    todas = []
+    for dias_atras in range(0, 30):
+        try:
+            fecha = (datetime.now() - timedelta(days=dias_atras)).strftime("%d%m%Y")
+            params = {"ticket": API_TICKET, "fecha": fecha, "estado": "adjudicada"}
+            response = requests.get(API_URL, params=params, timeout=30)
+            todas.extend(response.json().get("Listado", []))
+            time.sleep(0.3)
+        except:
+            pass
+    print(f"Total adjudicaciones descargadas: {len(todas)}")
+    return todas
+
+def guardar_adjudicaciones(licitaciones):
+    ahora = datetime.now().isoformat()
+    guardadas = 0
+
+    for l in licitaciones:
+        try:
+            codigo = l.get("CodigoExterno", "")
+            if not codigo:
+                continue
+
+            params = {"ticket": API_TICKET, "codigo": codigo}
+            response = requests.get(API_URL, params=params, timeout=30)
+            data = response.json()
+            detalle = data.get("Listado", [{}])[0]
+
+            organismo = detalle.get("Comprador", {}).get("NombreOrganismo", "")
+            region    = detalle.get("Comprador", {}).get("RegionUnidad", "")
+            monto     = detalle.get("MontoEstimado", 0) or 0
+            oferentes = len(detalle.get("Oferentes", {}).get("Listado", []))
+
+            adjudicaciones = detalle.get("Adjudicacion", {}).get("Listado", [])
+            empresa   = adjudicaciones[0].get("NombreProveedor", "") if adjudicaciones else ""
+            monto_adj = adjudicaciones[0].get("MontoUnitario", 0) if adjudicaciones else monto
+
+            items = detalle.get("Items", {}).get("Listado", [])
+            productos = " ".join([
+                i.get("NombreProducto", "") + " " + i.get("Descripcion", "")
+                for i in items
+            ])
+
+            supabase.table("historico_adjudicaciones").upsert({
+                "codigo_licitacion":  codigo,
+                "nombre":             l.get("Nombre", ""),
+                "organismo":          organismo,
+                "region":             region,
+                "monto_adjudicado":   int(monto_adj) if monto_adj else int(monto),
+                "empresa_adjudicada": empresa,
+                "numero_oferentes":   oferentes,
+                "fecha_adjudicacion": l.get("FechaCierre", "")[:10],
+                "productos":          normalizar(productos[:200]) if productos else "",
+                "actualizado":        ahora,
+            }, on_conflict="codigo_licitacion").execute()
+
+            guardadas += 1
+            time.sleep(0.3)
+
+        except Exception as e:
+            print(f"Error adjudicación {l.get('CodigoExterno','')}: {e}")
+            continue
+
+    print(f"Adjudicaciones guardadas: {guardadas}")
+
+# ── Procesar y guardar licitaciones vigentes ─────────────────────────────────
 def procesar_y_guardar(licitaciones):
     ahora = datetime.now().isoformat()
     guardadas = 0
@@ -120,4 +187,6 @@ if __name__ == "__main__":
     print(f"Agente iniciado: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
     licitaciones = obtener_licitaciones()
     procesar_y_guardar(licitaciones)
+    adjudicaciones = obtener_adjudicaciones()
+    guardar_adjudicaciones(adjudicaciones)
     print("Agente finalizado.")
