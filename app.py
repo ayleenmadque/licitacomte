@@ -31,7 +31,7 @@ PALABRAS_SCORE = [
     "transformacion digital", "herramientas digitales", "mejora continua"
 ]
 
-ESTADOS = ["De interes", "Postulando", "Adjudicada", "Perdida", "Desierta"]
+ESTADOS = ["De interés", "Postulando", "Adjudicada", "Perdida", "Desierta"]
 
 # Utilidades
 def normalizar(texto):
@@ -363,10 +363,10 @@ with tab1:
                     else:
                         st.error("Error al registrar.")
             with col_amarillo:
-                if st.button("De interes", use_container_width=True):
-                    ok = registrar_postulacion(fila, "De interes")
+                if st.button("De interés", use_container_width=True):
+                    ok = registrar_postulacion(fila, "De interés")
                     if ok:
-                        st.success(f"'{fila['Nombre']}' registrada como De interes.")
+                        st.success(f"'{fila['Nombre']}' registrada como De interés.")
                         st.session_state.fila_seleccionada = None
                     else:
                         st.error("Error al registrar.")
