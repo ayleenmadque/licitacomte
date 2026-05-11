@@ -269,6 +269,14 @@ def calcular_metricas(datos):
         "recomendacion":   recomendacion,
     }
 
+def extraer_keywords(nombre, productos):
+    texto = normalizar(nombre + " " + (productos or ""))
+    keywords = []
+    for p in PALABRAS_BASE + PALABRAS_SCORE:
+        if p in texto and p not in keywords:
+            keywords.append(p)
+    return ", ".join(keywords[:3]) if keywords else normalizar(nombre)[:30]
+
 # UI
 st.set_page_config(page_title="LicitaSimple", layout="wide")
 st.title("LicitaSimple")
@@ -335,7 +343,7 @@ with tab1:
             st.caption(f"{len(df)} resultados para '{busqueda}'")
         df_display = df.drop(columns=["_raw"]).reset_index(drop=True)
         df_display.index = range(1, len(df_display) + 1)
-        st.caption("Haz clic en una fila para seleccionarla")
+        st.caption("Haz clic en una fila para seleccionarla y ver su inteligencia de mercado")
         seleccion = st.dataframe(
             df_display,
             use_container_width=True,
@@ -348,6 +356,7 @@ with tab1:
             if st.session_state.fila_seleccionada != fila_nueva:
                 st.session_state.fila_seleccionada = fila_nueva
                 st.session_state.estado_accion = None
+
         if st.session_state.fila_seleccionada:
             fila = st.session_state.fila_seleccionada
             st.divider()
@@ -441,47 +450,66 @@ with tab2:
 # Tab 3: Inteligencia de Mercado
 with tab3:
     st.subheader("Inteligencia de Mercado")
-    st.caption("Analisis historico de licitaciones adjudicadas similares a tu perfil")
-    col_busq, col_btn3 = st.columns([3, 1])
-    with col_busq:
-        keywords = st.text_input(
-            "Palabras clave para analizar",
-            value="capacitacion, taller, curso",
-            placeholder="Ej: capacitacion, excel, power bi"
-        )
-    with col_btn3:
-        buscar_historico = st.button("Analizar", use_container_width=True)
-    if buscar_historico or keywords:
+
+    fila = st.session_state.fila_seleccionada
+
+    if fila:
+        st.caption(f"Analizando licitacion seleccionada: **{fila['Nombre'][:80]}**")
+        st.divider()
+
+        col_pres, col_org = st.columns([1, 2])
+        with col_pres:
+            monto = fila.get("Monto", 0)
+            st.metric("Presupuesto disponible", f"${monto:,.0f}" if monto else "No informado")
+        with col_org:
+            st.markdown(f"**Organismo:** {fila.get('Organismo', '—')}")
+            st.markdown(f"**Cierre:** {fila.get('Cierre', '—')}")
+
+        st.divider()
+
+        keywords = extraer_keywords(fila["Nombre"], fila.get("Productos", ""))
         datos = leer_historico(keywords)
+
         if not datos:
-            st.warning("No hay datos historicos aun. El agente los cargara en la proxima corrida.")
+            st.warning("No hay datos historicos similares aun. El agente los cargara en la proxima corrida.")
         else:
             metricas = calcular_metricas(datos)
             if metricas:
-                st.divider()
-                st.markdown(f"**{metricas['total']} licitaciones adjudicadas** encontradas para: `{keywords}`")
+                st.markdown(f"**{metricas['total']} licitaciones adjudicadas similares** encontradas")
+
                 col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-                col_m1.metric("Monto promedio", f"${metricas['promedio']:,.0f}")
-                col_m2.metric("Monto minimo",   f"${metricas['minimo']:,.0f}")
-                col_m3.metric("Monto maximo",   f"${metricas['maximo']:,.0f}")
-                col_m4.metric("Oferentes promedio", f"{metricas['prom_oferentes']:.1f}")
+                col_m1.metric("Monto promedio adjudicado", f"${metricas['promedio']:,.0f}")
+                col_m2.metric("Monto minimo", f"${metricas['minimo']:,.0f}")
+                col_m3.metric("Monto maximo", f"${metricas['maximo']:,.0f}")
+                col_m4.metric("Precio recomendado", f"${metricas['recomendacion']:,.0f}")
+
                 st.divider()
                 col_rec, col_emp = st.columns([1, 1])
+
                 with col_rec:
                     st.markdown("### Recomendacion de precio")
                     st.info(f"Para ser competitivo, considera ofertar alrededor de **${metricas['recomendacion']:,.0f}** (5% bajo el promedio adjudicado)")
+                    if monto and metricas['promedio']:
+                        if metricas['promedio'] < monto * 0.5:
+                            st.warning(f"El presupuesto disponible (${monto:,.0f}) es significativamente mayor al promedio historico. Buena oportunidad.")
+                        elif metricas['promedio'] > monto:
+                            st.error("El promedio historico supera el presupuesto disponible. Evalua bien los costos.")
+
                 with col_emp:
                     st.markdown("### Empresas que mas ganan")
                     for empresa, veces in metricas["top_empresas"]:
                         st.markdown(f"- **{empresa}** — {veces} adjudicacion{'es' if veces > 1 else ''}")
+
                 st.divider()
-                st.markdown("### Detalle de adjudicaciones")
+                st.markdown("### Ultimas adjudicaciones similares")
                 df_hist = pd.DataFrame(datos)
                 columnas_hist = ["nombre", "organismo", "region", "monto_adjudicado", "empresa_adjudicada", "numero_oferentes", "fecha_adjudicacion"]
                 df_hist_vista = df_hist[columnas_hist].copy()
                 df_hist_vista.columns = ["Nombre", "Organismo", "Region", "Monto Adjudicado", "Empresa Ganadora", "N Oferentes", "Fecha"]
                 df_hist_vista.index = range(1, len(df_hist_vista) + 1)
                 st.dataframe(df_hist_vista, use_container_width=True)
+    else:
+        st.info("Selecciona una licitacion en la tab Oportunidades para ver su inteligencia de mercado.")
 
 # Tab 4: Asistente IA
 with tab4:
