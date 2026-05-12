@@ -348,44 +348,19 @@ with tab1:
 
         # Agregar columna de accion con emojis
         df["Accion"] = "🟢 🟡 🔴"
-        df["Postulando"] = False
-        df["De interes"] = False
-
-        df_display = df[["ID", "Nombre", "Cierre", "Monto", "Score", "Postulando", "De interes"]].copy()
+        df_display = df[["ID", "Nombre", "Cierre", "Monto", "Score"]].copy()
         df_display.index = range(1, len(df_display) + 1)
 
-        st.caption("Usa los botones para registrar una licitacion. Haz clic en la fila para ver el detalle.")
-        edited = st.data_editor(
-            df_display,
-            use_container_width=True,
-            column_config={
-                "Postulando": st.column_config.CheckboxColumn("🟢", width="small"),
-                "De interes": st.column_config.CheckboxColumn("🟡", width="small"),
-                "Monto": st.column_config.NumberColumn("Monto", format="$%d"),
-                "Score": st.column_config.NumberColumn("Score", width="small"),
-            },
-            disabled=["ID", "Nombre", "Cierre", "Monto", "Score"],
-            hide_index=False,
-        )
-
-        for i, row in edited.iterrows():
-            idx = i - 1
-            fila = df.iloc[idx].to_dict()
-            if row["Postulando"]:
-                registrar_postulacion(fila, "Postulando")
-                st.success(f"'{fila['Nombre'][:50]}' registrada como Postulando.")
-                st.rerun()
-            if row["De interes"]:
-                registrar_postulacion(fila, "De interés")
-                st.success(f"'{fila['Nombre'][:50]}' registrada como De interés.")
-                st.rerun()
-
+        st.caption("Haz clic en una fila para ver el detalle")
         seleccion = st.dataframe(
-            df_display[["ID", "Nombre", "Cierre", "Monto", "Score"]],
+            df_display,
             use_container_width=True,
             on_select="rerun",
             selection_mode="single-row",
-            key="tabla_sel"
+            column_config={
+                "Score": st.column_config.NumberColumn("Score", width="small"),
+                "Monto": st.column_config.NumberColumn("Monto", format="$%d"),
+            }
         )
 
         filas_sel = seleccion.selection.rows if seleccion.selection else []
@@ -397,51 +372,18 @@ with tab1:
 
         if st.session_state.fila_seleccionada:
             fila = st.session_state.fila_seleccionada
-
-            st.markdown("""
-<style>
-.panel-fijo {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: var(--background-color, white);
-    border-top: 1px solid rgba(0,0,0,0.1);
-    padding: 12px 24px;
-    z-index: 999;
-    box-shadow: 0 -2px 8px rgba(0,0,0,0.08);
-}
-div[data-testid="column"]:has(button[kind="secondary"]) {
-    display: none;
-}
-</style>
-""", unsafe_allow_html=True)
-
-            st.markdown(f"""
-<div class="panel-fijo">
-  <div style="display:grid; grid-template-columns: 2fr 1fr; gap:16px; max-width:1200px; margin-left:auto; margin-right:auto; align-items:center;">
-    <div style="display:grid; grid-template-columns: 2fr 1fr; gap:16px;">
-      <div>
-        <p style="font-size:11px; color:gray; margin:0 0 4px;">Productos / descripcion del servicio</p>
-        <p style="font-size:13px; margin:0; line-height:1.5;">{fila.get("Productos","—")[:300]}</p>
-      </div>
-      <div style="display:flex; flex-direction:column; gap:6px;">
-        <div><span style="font-size:11px; color:gray;">Organismo</span><br><span style="font-size:13px;">{fila.get("Organismo","—")}</span></div>
-        <div><span style="font-size:11px; color:gray;">Monto</span><br><span style="font-size:13px;">${fila.get("Monto",0):,.0f}</span></div>
-      </div>
-    </div>
-    <div style="display:flex; flex-direction:column; gap:8px;">
-      <button onclick="localStorage.setItem('accion_licitacion','postulando'); document.getElementById('trigger_postulando').click();" style="padding:8px 0; width:100%; cursor:pointer; border-radius:6px; border:1px solid #ccc; background:white; font-size:13px;">Postulando</button>
-      <button onclick="localStorage.setItem('accion_licitacion','interes'); document.getElementById('trigger_interes').click();" style="padding:8px 0; width:100%; cursor:pointer; border-radius:6px; border:1px solid #ccc; background:white; font-size:13px;">De interes</button>
-      <button onclick="localStorage.setItem('accion_licitacion','cancelar'); document.getElementById('trigger_cancelar').click();" style="padding:8px 0; width:100%; cursor:pointer; border-radius:6px; border:1px solid #ccc; background:white; font-size:13px;">Cancelar</button>
-    </div>
-  </div>
-</div>
-""", unsafe_allow_html=True)
+            st.divider()
+            col_productos, col_info = st.columns([2, 1])
+            with col_productos:
+                st.markdown("**Productos / descripcion del servicio**")
+                st.write(fila.get("Productos", "—"))
+            with col_info:
+                st.markdown(f"**Organismo:** {fila.get('Organismo','—')}")
+                st.markdown(f"**Monto:** ${fila.get('Monto',0):,.0f}")
 
             col_verde, col_amarillo, col_cancel = st.columns([2, 2, 3])
             with col_verde:
-                if st.button("🟢 Postulando", use_container_width=True, key="btn_postulando"):
+                if st.button("Postulando", use_container_width=True, key="btn_postulando"):
                     ok = registrar_postulacion(fila, "Postulando")
                     if ok:
                         st.success(f"'{fila['Nombre']}' registrada como Postulando.")
@@ -449,7 +391,7 @@ div[data-testid="column"]:has(button[kind="secondary"]) {
                     else:
                         st.error("Error al registrar.")
             with col_amarillo:
-                if st.button("🟡 De interes", use_container_width=True, key="btn_interes"):
+                if st.button("De interes", use_container_width=True, key="btn_interes"):
                     ok = registrar_postulacion(fila, "De interes")
                     if ok:
                         st.success(f"'{fila['Nombre']}' registrada como De interes.")
