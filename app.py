@@ -348,60 +348,36 @@ with tab1:
 
         # Agregar columna de accion con emojis
         df["Accion"] = "🟢 🟡 🔴"
-        df_display = df[["ID", "Nombre", "Cierre", "Monto", "Score"]].copy()
-        df_display.index = range(1, len(df_display) + 1)
+        # Encabezado de tabla
+        col_id, col_nom, col_cierre, col_monto, col_score, col_acc = st.columns([1.2, 3, 1.5, 1.2, 0.6, 1.2])
+        col_id.markdown("**ID**")
+        col_nom.markdown("**Nombre**")
+        col_cierre.markdown("**Cierre**")
+        col_monto.markdown("**Monto**")
+        col_score.markdown("**Score**")
+        col_acc.markdown("**Accion**")
+        st.divider()
 
-        st.caption("Haz clic en una fila para ver el detalle")
-        seleccion = st.dataframe(
-            df_display,
-            use_container_width=True,
-            on_select="rerun",
-            selection_mode="single-row",
-            column_config={
-                "Score": st.column_config.NumberColumn("Score", width="small"),
-                "Monto": st.column_config.NumberColumn("Monto", format="$%d"),
-            }
-        )
-
-        filas_sel = seleccion.selection.rows if seleccion.selection else []
-        if filas_sel:
-            fila_nueva = df.iloc[filas_sel[0]].to_dict()
-            if st.session_state.fila_seleccionada != fila_nueva:
-                st.session_state.fila_seleccionada = fila_nueva
-                st.session_state.estado_accion = None
-
-        if st.session_state.fila_seleccionada:
-            fila = st.session_state.fila_seleccionada
-            st.divider()
-            col_productos, col_info = st.columns([2, 1])
-            with col_productos:
-                st.markdown("**Productos / descripcion del servicio**")
-                st.write(fila.get("Productos", "—"))
-            with col_info:
-                st.markdown(f"**Organismo:** {fila.get('Organismo','—')}")
-                st.markdown(f"**Monto:** ${fila.get('Monto',0):,.0f}")
-
-            col_verde, col_amarillo, col_cancel = st.columns([2, 2, 3])
-            with col_verde:
-                if st.button("Postulando", use_container_width=True, key="btn_postulando"):
-                    ok = registrar_postulacion(fila, "Postulando")
+        for i, row in df.iterrows():
+            monto_str = f"${int(row['Monto']):,}" if row.get('Monto') else "$0"
+            col_id, col_nom, col_cierre, col_monto, col_score, col_acc = st.columns([1.2, 3, 1.5, 1.2, 0.6, 1.2])
+            col_id.caption(row["ID"])
+            col_nom.caption(row["Nombre"][:60])
+            col_cierre.caption(row["Cierre"])
+            col_monto.caption(monto_str)
+            col_score.caption(str(int(row["Score"])))
+            with col_acc:
+                c1, c2 = st.columns(2)
+                if c1.button("🟢", key=f"post_{i}", help="Postulando"):
+                    ok = registrar_postulacion(row.to_dict(), "Postulando")
                     if ok:
-                        st.success(f"'{fila['Nombre']}' registrada como Postulando.")
-                        st.session_state.fila_seleccionada = None
-                    else:
-                        st.error("Error al registrar.")
-            with col_amarillo:
-                if st.button("De interes", use_container_width=True, key="btn_interes"):
-                    ok = registrar_postulacion(fila, "De interes")
+                        st.success(f"Registrada como Postulando.")
+                        st.rerun()
+                if c2.button("🟡", key=f"int_{i}", help="De interes"):
+                    ok = registrar_postulacion(row.to_dict(), "De interés")
                     if ok:
-                        st.success(f"'{fila['Nombre']}' registrada como De interes.")
-                        st.session_state.fila_seleccionada = None
-                    else:
-                        st.error("Error al registrar.")
-            with col_cancel:
-                if st.button("Cancelar", use_container_width=True, key="btn_cancelar"):
-                    st.session_state.fila_seleccionada = None
-                    st.rerun()
+                        st.success(f"Registrada como De interes.")
+                        st.rerun()
     else:
         st.info("Presiona 'Cargar licitaciones' para comenzar.")
 
