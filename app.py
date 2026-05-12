@@ -380,43 +380,57 @@ with tab1:
     z-index: 999;
     box-shadow: 0 -2px 8px rgba(0,0,0,0.08);
 }
+div[data-testid="column"]:has(button[kind="secondary"]) {
+    display: none;
+}
 </style>
 """, unsafe_allow_html=True)
 
             st.markdown(f"""
 <div class="panel-fijo">
-  <div style="display:grid; grid-template-columns: 2fr 1fr; gap:16px; max-width:1200px; margin-left:auto; margin-right:auto;">
-    <div>
-      <p style="font-size:11px; color:gray; margin:0 0 4px;">Productos / descripcion del servicio</p>
-      <p style="font-size:13px; margin:0; line-height:1.5;">{fila.get("Productos","—")[:300]}</p>
+  <div style="display:grid; grid-template-columns: 2fr 1fr; gap:16px; max-width:1200px; margin-left:auto; margin-right:auto; align-items:center;">
+    <div style="display:grid; grid-template-columns: 2fr 1fr; gap:16px;">
+      <div>
+        <p style="font-size:11px; color:gray; margin:0 0 4px;">Productos / descripcion del servicio</p>
+        <p style="font-size:13px; margin:0; line-height:1.5;">{fila.get("Productos","—")[:300]}</p>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div><span style="font-size:11px; color:gray;">Organismo</span><br><span style="font-size:13px;">{fila.get("Organismo","—")}</span></div>
+        <div><span style="font-size:11px; color:gray;">Monto</span><br><span style="font-size:13px;">${fila.get("Monto",0):,.0f}</span></div>
+      </div>
     </div>
-    <div style="display:flex; flex-direction:column; gap:6px;">
-      <div><span style="font-size:11px; color:gray;">Organismo</span><br><span style="font-size:13px;">{fila.get("Organismo","—")}</span></div>
-      <div><span style="font-size:11px; color:gray;">Monto</span><br><span style="font-size:13px;">${fila.get("Monto",0):,.0f}</span></div>
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <button onclick="window.parent.postMessage({{type:'streamlit:setComponentValue', value:'postulando'}}, '*')" style="padding:8px 0; width:100%; cursor:pointer; border-radius:6px; border:1px solid #ccc; background:white; font-size:13px;">Postulando</button>
+      <button onclick="window.parent.postMessage({{type:'streamlit:setComponentValue', value:'interes'}}, '*')" style="padding:8px 0; width:100%; cursor:pointer; border-radius:6px; border:1px solid #ccc; background:white; font-size:13px;">De interes</button>
+      <button onclick="window.parent.postMessage({{type:'streamlit:setComponentValue', value:'cancelar'}}, '*')" style="padding:8px 0; width:100%; cursor:pointer; border-radius:6px; border:1px solid #ccc; background:white; font-size:13px;">Cancelar</button>
     </div>
   </div>
 </div>
 """, unsafe_allow_html=True)
 
-            col_info, col_btns = st.columns([2, 1])
-            with col_btns:
-                if st.button("Postulando", use_container_width=True):
+            col_verde, col_amarillo, col_cancel = st.columns([1, 1, 1])
+            with col_verde:
+                if st.button("Postulando", use_container_width=True, key="btn_postulando"):
                     ok = registrar_postulacion(fila, "Postulando")
                     if ok:
                         st.success(f"'{fila['Nombre']}' registrada como Postulando.")
                         st.session_state.fila_seleccionada = None
                     else:
                         st.error("Error al registrar.")
-                if st.button("De interes", use_container_width=True):
+            with col_amarillo:
+                if st.button("De interes", use_container_width=True, key="btn_interes"):
                     ok = registrar_postulacion(fila, "De interes")
                     if ok:
                         st.success(f"'{fila['Nombre']}' registrada como De interes.")
                         st.session_state.fila_seleccionada = None
                     else:
                         st.error("Error al registrar.")
-                if st.button("Cancelar", use_container_width=True):
+            with col_cancel:
+                if st.button("Cancelar", use_container_width=True, key="btn_cancelar"):
                     st.session_state.fila_seleccionada = None
                     st.rerun()
+
+            st.markdown("<div style='height:120px'></div>", unsafe_allow_html=True)
     else:
         st.info("Presiona 'Cargar licitaciones' para comenzar.")
 
