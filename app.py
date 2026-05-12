@@ -362,7 +362,9 @@ with tab1:
             monto_str = f"${int(row['Monto']):,}" if row.get('Monto') else "$0"
             col_id, col_nom, col_cierre, col_monto, col_score, col_acc = st.columns([1.2, 3, 1.5, 1.2, 0.6, 1.2])
             col_id.caption(row["ID"])
-            col_nom.caption(row["Nombre"][:60])
+            if col_nom.button(row["Nombre"][:60], key=f"sel_{i}", use_container_width=True):
+                st.session_state.fila_seleccionada = row.to_dict()
+                st.rerun()
             col_cierre.caption(row["Cierre"])
             col_monto.caption(monto_str)
             col_score.caption(str(int(row["Score"])))
@@ -378,6 +380,22 @@ with tab1:
                     if ok:
                         st.success(f"Registrada como De interes.")
                         st.rerun()
+            if st.session_state.fila_seleccionada and st.session_state.fila_seleccionada.get("ID") == row["ID"]:
+                with st.container():
+                    st.divider()
+                    col_prod, col_info = st.columns([2, 1])
+                    with col_prod:
+                        st.markdown("**Productos / descripcion del servicio**")
+                        st.write(row.get("Productos", "—"))
+                    with col_info:
+                        st.markdown(f"**Organismo:** {row.get('Organismo','—')}")
+                        st.markdown(f"**Monto:** {monto_str}")
+                    if st.button("Cancelar seleccion", key=f"cancel_{i}"):
+                        st.session_state.fila_seleccionada = None
+                        st.rerun()
+                    st.divider()
+
+
     else:
         st.info("Presiona 'Cargar licitaciones' para comenzar.")
 
