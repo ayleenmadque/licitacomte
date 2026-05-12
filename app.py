@@ -160,7 +160,7 @@ def leer_desde_supabase():
                 "Dias restantes": f["dias_restantes"],
                 "Score":          f["score"],
                 "Region":         "",
-                "Monto":          0,
+                "Monto":          f.get("monto", 0) or 0,
                 "_raw":           {},
             }
             for f in (response.data or [])
