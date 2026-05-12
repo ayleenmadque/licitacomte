@@ -346,80 +346,30 @@ with tab1:
         # Ordenar por cierre mas proximo
         df = df.sort_values("Cierre").reset_index(drop=True)
 
-        # Detectar accion desde query params
-        params = st.query_params
-        if "accion" in params and "idx" in params:
-            idx = int(params["idx"])
-            accion = params["accion"]
-            if idx < len(df):
-                fila_accion = df.iloc[idx].to_dict()
-                if accion == "postulando":
-                    ok = registrar_postulacion(fila_accion, "Postulando")
-                    if ok:
-                        st.success(f"'{fila_accion['Nombre']}' registrada como Postulando.")
-                elif accion == "interes":
-                    ok = registrar_postulacion(fila_accion, "De interés")
-                    if ok:
-                        st.success(f"'{fila_accion['Nombre']}' registrada como De interés.")
-                elif accion == "cancelar":
-                    st.session_state.fila_seleccionada = None
-                st.query_params.clear()
-                st.rerun()
+        # Agregar columna de accion con emojis
+        df["Accion"] = "🟢 🟡 🔴"
+        df_display = df[["ID", "Nombre", "Cierre", "Monto", "Score", "Accion"]].copy()
+        df_display.index = range(1, len(df_display) + 1)
 
-        if "sel" in params:
-            idx = int(params["sel"])
-            if idx < len(df):
-                st.session_state.fila_seleccionada = df.iloc[idx].to_dict()
-            st.query_params.clear()
-            st.rerun()
+        st.caption("Haz clic en una fila para ver el detalle")
+        seleccion = st.dataframe(
+            df_display,
+            use_container_width=True,
+            on_select="rerun",
+            selection_mode="single-row",
+            column_config={
+                "Accion": st.column_config.TextColumn("Accion", width="small"),
+                "Score": st.column_config.NumberColumn("Score", width="small"),
+                "Monto": st.column_config.NumberColumn("Monto", format="$%d"),
+            }
+        )
 
-        # Construir tabla HTML
-        filas_html = ""
-        for i, row in df.iterrows():
-            monto_str = f"${int(row['Monto']):,}" if row.get('Monto') else "No informado"
-            selected = "background:var(--background-color,#f8f8f8);" if st.session_state.fila_seleccionada and st.session_state.fila_seleccionada.get("ID") == row["ID"] else ""
-            filas_html += f"""
-            <tr onclick="window.location.href=window.location.pathname+'?sel={i}'" style="cursor:pointer; {selected}">
-              <td style="padding:8px 10px; font-size:12px; border-bottom:0.5px solid #eee; white-space:nowrap;">{row["ID"]}</td>
-              <td style="padding:8px 10px; font-size:12px; border-bottom:0.5px solid #eee; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:300px;">{row["Nombre"]}</td>
-              <td style="padding:8px 10px; font-size:12px; border-bottom:0.5px solid #eee; white-space:nowrap;">{row["Cierre"]}</td>
-              <td style="padding:8px 10px; font-size:12px; border-bottom:0.5px solid #eee; white-space:nowrap;">{monto_str}</td>
-              <td style="padding:8px 10px; font-size:12px; border-bottom:0.5px solid #eee; text-align:center;">{int(row["Score"])}</td>
-              <td style="padding:6px 10px; border-bottom:0.5px solid #eee;" onclick="event.stopPropagation()">
-                <div style="display:flex; gap:5px; align-items:center; justify-content:center;">
-                  <a href="?accion=postulando&idx={i}" title="Postulando" style="width:14px;height:14px;border-radius:50%;background:#22c55e;display:inline-block;"></a>
-                  <a href="?accion=interes&idx={i}" title="De interes" style="width:14px;height:14px;border-radius:50%;background:#eab308;display:inline-block;"></a>
-                  <a href="?accion=cancelar&idx={i}" title="Cancelar" style="width:14px;height:14px;border-radius:50%;background:#ef4444;display:inline-block;"></a>
-                </div>
-              </td>
-            </tr>"""
-
-        tabla_html = f"""
-        <div style="border:0.5px solid #e0e0e0; border-radius:8px; overflow:hidden; width:100%;">
-          <table style="width:100%; border-collapse:collapse; table-layout:fixed;">
-            <colgroup>
-              <col style="width:110px;">
-              <col>
-              <col style="width:130px;">
-              <col style="width:100px;">
-              <col style="width:55px;">
-              <col style="width:80px;">
-            </colgroup>
-            <thead style="background:#f8f8f8;">
-              <tr>
-                <th style="padding:8px 10px; font-size:11px; font-weight:400; color:#888; text-align:left; border-bottom:0.5px solid #eee;">ID</th>
-                <th style="padding:8px 10px; font-size:11px; font-weight:400; color:#888; text-align:left; border-bottom:0.5px solid #eee;">Nombre</th>
-                <th style="padding:8px 10px; font-size:11px; font-weight:400; color:#888; text-align:left; border-bottom:0.5px solid #eee;">Cierre</th>
-                <th style="padding:8px 10px; font-size:11px; font-weight:400; color:#888; text-align:left; border-bottom:0.5px solid #eee;">Monto</th>
-                <th style="padding:8px 10px; font-size:11px; font-weight:400; color:#888; text-align:center; border-bottom:0.5px solid #eee;">Score</th>
-                <th style="padding:8px 10px; font-size:11px; font-weight:400; color:#888; text-align:center; border-bottom:0.5px solid #eee;">Accion</th>
-              </tr>
-            </thead>
-            <tbody>{filas_html}</tbody>
-          </table>
-        </div>"""
-
-        st.markdown(tabla_html, unsafe_allow_html=True)
+        filas_sel = seleccion.selection.rows if seleccion.selection else []
+        if filas_sel:
+            fila_nueva = df.iloc[filas_sel[0]].to_dict()
+            if st.session_state.fila_seleccionada != fila_nueva:
+                st.session_state.fila_seleccionada = fila_nueva
+                st.session_state.estado_accion = None
 
         if st.session_state.fila_seleccionada:
             fila = st.session_state.fila_seleccionada
@@ -465,15 +415,9 @@ div[data-testid="column"]:has(button[kind="secondary"]) {
 </div>
 """, unsafe_allow_html=True)
 
-            st.markdown("""
-<style>
-div[data-testid="stHorizontalBlock"] { display: none !important; }
-</style>
-""", unsafe_allow_html=True)
-
-            col_verde, col_amarillo, col_cancel = st.columns([1, 1, 1])
+            col_verde, col_amarillo, col_cancel = st.columns([2, 2, 3])
             with col_verde:
-                if st.button("Postulando", use_container_width=True, key="trigger_postulando"):
+                if st.button("🟢 Postulando", use_container_width=True, key="btn_postulando"):
                     ok = registrar_postulacion(fila, "Postulando")
                     if ok:
                         st.success(f"'{fila['Nombre']}' registrada como Postulando.")
@@ -481,7 +425,7 @@ div[data-testid="stHorizontalBlock"] { display: none !important; }
                     else:
                         st.error("Error al registrar.")
             with col_amarillo:
-                if st.button("De interes", use_container_width=True, key="trigger_interes"):
+                if st.button("🟡 De interes", use_container_width=True, key="btn_interes"):
                     ok = registrar_postulacion(fila, "De interes")
                     if ok:
                         st.success(f"'{fila['Nombre']}' registrada como De interes.")
@@ -489,11 +433,9 @@ div[data-testid="stHorizontalBlock"] { display: none !important; }
                     else:
                         st.error("Error al registrar.")
             with col_cancel:
-                if st.button("Cancelar", use_container_width=True, key="trigger_cancelar"):
+                if st.button("Cancelar", use_container_width=True, key="btn_cancelar"):
                     st.session_state.fila_seleccionada = None
                     st.rerun()
-
-            st.markdown("<div style='height:150px'></div>", unsafe_allow_html=True)
     else:
         st.info("Presiona 'Cargar licitaciones' para comenzar.")
 
