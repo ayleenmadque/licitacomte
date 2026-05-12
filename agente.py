@@ -171,6 +171,7 @@ def procesar_y_guardar(licitaciones):
                 "cierre":         cierre_str[:16].replace("T", " "),
                 "dias_restantes": dias,
                 "score":          score,
+                "monto":          int(monto) if monto else 0,
                 "actualizado":    ahora,
             }, on_conflict="codigo_externo").execute()
 
