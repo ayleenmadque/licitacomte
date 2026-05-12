@@ -379,7 +379,7 @@ with tab1:
             monto_str = f"${int(row['Monto']):,}" if row.get('Monto') else "No informado"
             selected = "background:var(--background-color,#f8f8f8);" if st.session_state.fila_seleccionada and st.session_state.fila_seleccionada.get("ID") == row["ID"] else ""
             filas_html += f"""
-            <tr onclick="window.location.href='?sel={i}'" style="cursor:pointer; {selected}">
+            <tr onclick="window.location.href=window.location.pathname+'?sel={i}'" style="cursor:pointer; {selected}">
               <td style="padding:8px 10px; font-size:12px; border-bottom:0.5px solid #eee; white-space:nowrap;">{row["ID"]}</td>
               <td style="padding:8px 10px; font-size:12px; border-bottom:0.5px solid #eee; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:300px;">{row["Nombre"]}</td>
               <td style="padding:8px 10px; font-size:12px; border-bottom:0.5px solid #eee; white-space:nowrap;">{row["Cierre"]}</td>
