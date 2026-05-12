@@ -366,15 +366,37 @@ with tab1:
 
         if st.session_state.fila_seleccionada:
             fila = st.session_state.fila_seleccionada
-            st.divider()
-            col_productos, col_info = st.columns([2, 1])
-            with col_productos:
-                st.markdown("**Productos / descripcion del servicio**")
-                st.write(fila.get("Productos", "—"))
-            with col_info:
-                st.markdown(f"**Organismo:** {fila.get('Organismo','—')}")
-                st.markdown(f"**Region:** {fila.get('Region','—')}")
-                st.markdown(f"**Monto:** ${fila.get('Monto',0):,.0f}")
+
+            st.markdown("""
+<style>
+.panel-fijo {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--background-color, white);
+    border-top: 1px solid rgba(0,0,0,0.1);
+    padding: 12px 24px;
+    z-index: 999;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.08);
+}
+</style>
+""", unsafe_allow_html=True)
+
+            st.markdown(f"""
+<div class="panel-fijo">
+  <div style="display:grid; grid-template-columns: 2fr 1fr; gap:16px; margin-bottom:10px; max-width:1200px; margin-left:auto; margin-right:auto;">
+    <div>
+      <p style="font-size:11px; color:gray; margin:0 0 4px;">Productos / descripcion del servicio</p>
+      <p style="font-size:13px; margin:0; line-height:1.5;">{fila.get("Productos","—")[:300]}</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:6px;">
+      <div><span style="font-size:11px; color:gray;">Organismo</span><br><span style="font-size:13px;">{fila.get("Organismo","—")}</span></div>
+      <div><span style="font-size:11px; color:gray;">Monto</span><br><span style="font-size:13px;">${fila.get("Monto",0):,.0f}</span></div>
+    </div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
             col_verde, col_amarillo, col_cancel = st.columns([2, 2, 3])
             with col_verde:
