@@ -380,21 +380,23 @@ with tab1:
                     if ok:
                         st.success(f"Registrada como De interes.")
                         st.rerun()
-            if st.session_state.fila_seleccionada and st.session_state.fila_seleccionada.get("ID") == row["ID"]:
-                with st.container():
-                    st.divider()
-                    col_prod, col_info = st.columns([2, 1])
-                    with col_prod:
-                        st.markdown("**Productos / descripcion del servicio**")
-                        st.write(row.get("Productos", "—"))
-                    with col_info:
-                        st.markdown(f"**Organismo:** {row.get('Organismo','—')}")
-                        st.markdown(f"**Monto:** {monto_str}")
-                    if st.button("Cancelar seleccion", key=f"cancel_{i}"):
-                        st.session_state.fila_seleccionada = None
-                        st.rerun()
-                    st.divider()
 
+
+
+        if st.session_state.fila_seleccionada:
+            fila = st.session_state.fila_seleccionada
+            monto_sel = f"${int(fila.get('Monto',0)):,}" if fila.get('Monto') else "$0"
+            st.divider()
+            col_prod, col_info = st.columns([2, 1])
+            with col_prod:
+                st.markdown("**Productos / descripcion del servicio**")
+                st.write(fila.get("Productos", "—"))
+            with col_info:
+                st.markdown(f"**Organismo:** {fila.get('Organismo','—')}")
+                st.markdown(f"**Monto:** {monto_sel}")
+            if st.button("Cancelar seleccion", key="btn_cancelar"):
+                st.session_state.fila_seleccionada = None
+                st.rerun()
 
     else:
         st.info("Presiona 'Cargar licitaciones' para comenzar.")
