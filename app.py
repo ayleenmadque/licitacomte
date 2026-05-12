@@ -336,20 +336,27 @@ with tab1:
     if st.session_state.resultados:
         st.success(f"{len(st.session_state.resultados)} licitaciones vigentes")
         df = pd.DataFrame(st.session_state.resultados)
+
         busqueda = st.text_input("Buscar dentro de los resultados", placeholder="Ej: excel, power bi, Santiago...")
         if busqueda:
             mask = df.apply(lambda row: row.astype(str).str.contains(busqueda, case=False).any(), axis=1)
             df = df[mask]
             st.caption(f"{len(df)} resultados para '{busqueda}'")
-        df_display = df.drop(columns=["_raw"]).reset_index(drop=True)
+
+        # Ordenar por cierre mas proximo
+        df = df.sort_values("Cierre").reset_index(drop=True)
+
+        df_display = df[["ID", "Nombre", "Cierre", "Monto", "Score"]].copy()
         df_display.index = range(1, len(df_display) + 1)
-        st.caption("Haz clic en una fila para seleccionarla y ver su inteligencia de mercado")
+
+        st.caption("Haz clic en una fila para ver el detalle")
         seleccion = st.dataframe(
             df_display,
             use_container_width=True,
             on_select="rerun",
             selection_mode="single-row",
         )
+
         filas_sel = seleccion.selection.rows if seleccion.selection else []
         if filas_sel:
             fila_nueva = df.iloc[filas_sel[0]].to_dict()
@@ -360,8 +367,15 @@ with tab1:
         if st.session_state.fila_seleccionada:
             fila = st.session_state.fila_seleccionada
             st.divider()
-            st.markdown(f"**Seleccionada:** {fila['Nombre']}  \n`{fila['ID']}` · {fila['Organismo']} · Cierre: {fila['Cierre']}")
-            st.markdown(f"**Productos:** {fila.get('Productos','—')} · **Region:** {fila.get('Region','—')} · **Monto:** ${fila.get('Monto',0):,.0f}")
+            col_productos, col_info = st.columns([2, 1])
+            with col_productos:
+                st.markdown("**Productos / descripcion del servicio**")
+                st.write(fila.get("Productos", "—"))
+            with col_info:
+                st.markdown(f"**Organismo:** {fila.get('Organismo','—')}")
+                st.markdown(f"**Region:** {fila.get('Region','—')}")
+                st.markdown(f"**Monto:** ${fila.get('Monto',0):,.0f}")
+
             col_verde, col_amarillo, col_cancel = st.columns([2, 2, 3])
             with col_verde:
                 if st.button("Postulando", use_container_width=True):
@@ -372,10 +386,10 @@ with tab1:
                     else:
                         st.error("Error al registrar.")
             with col_amarillo:
-                if st.button("De interés", use_container_width=True):
-                    ok = registrar_postulacion(fila, "De interés")
+                if st.button("De interes", use_container_width=True):
+                    ok = registrar_postulacion(fila, "De interes")
                     if ok:
-                        st.success(f"'{fila['Nombre']}' registrada como De interés.")
+                        st.success(f"'{fila['Nombre']}' registrada como De interes.")
                         st.session_state.fila_seleccionada = None
                     else:
                         st.error("Error al registrar.")
@@ -383,10 +397,6 @@ with tab1:
                 if st.button("Cancelar", use_container_width=True):
                     st.session_state.fila_seleccionada = None
                     st.rerun()
-            raw = fila.get("_raw", {})
-            if raw:
-                with st.expander("DEBUG — Estructura completa de la licitacion"):
-                    st.json(raw)
     else:
         st.info("Presiona 'Cargar licitaciones' para comenzar.")
 
