@@ -81,6 +81,17 @@ div.stButton > button:hover {
     background: #f7f8fa !important;
     border-color: #c9ced8 !important;
 }
+button[kind="secondary"].nombre-btn {
+    border: none !important;
+    background: transparent !important;
+    text-align: left !important;
+    padding: 0 !important;
+    font-size: 14px !important;
+    font-weight: 400 !important;
+    color: #303442 !important;
+    min-height: 0 !important;
+    box-shadow: none !important;
+}
 .table-shell {
     border: 1px solid #e5e7eb;
     border-radius: 16px;
@@ -508,7 +519,8 @@ if seccion == "Oportunidades":
 
             col_id.markdown(f'<div class="muted">{row["ID"]}</div>', unsafe_allow_html=True)
 
-            if col_nom.button(row["Nombre"][:90], key=f"sel_{i}", use_container_width=True):
+            col_nom.markdown(f'<div class="row-text" style="cursor:default;">{row["Nombre"][:90]}</div>', unsafe_allow_html=True)
+            if col_nom.button("▸", key=f"sel_{i}"):
                 st.session_state.fila_seleccionada = row.to_dict()
                 st.rerun()
 
