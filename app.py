@@ -400,17 +400,23 @@ div[data-testid="column"]:has(button[kind="secondary"]) {
       </div>
     </div>
     <div style="display:flex; flex-direction:column; gap:8px;">
-      <button onclick="window.parent.postMessage({{type:'streamlit:setComponentValue', value:'postulando'}}, '*')" style="padding:8px 0; width:100%; cursor:pointer; border-radius:6px; border:1px solid #ccc; background:white; font-size:13px;">Postulando</button>
-      <button onclick="window.parent.postMessage({{type:'streamlit:setComponentValue', value:'interes'}}, '*')" style="padding:8px 0; width:100%; cursor:pointer; border-radius:6px; border:1px solid #ccc; background:white; font-size:13px;">De interes</button>
-      <button onclick="window.parent.postMessage({{type:'streamlit:setComponentValue', value:'cancelar'}}, '*')" style="padding:8px 0; width:100%; cursor:pointer; border-radius:6px; border:1px solid #ccc; background:white; font-size:13px;">Cancelar</button>
+      <button onclick="localStorage.setItem('accion_licitacion','postulando'); document.getElementById('trigger_postulando').click();" style="padding:8px 0; width:100%; cursor:pointer; border-radius:6px; border:1px solid #ccc; background:white; font-size:13px;">Postulando</button>
+      <button onclick="localStorage.setItem('accion_licitacion','interes'); document.getElementById('trigger_interes').click();" style="padding:8px 0; width:100%; cursor:pointer; border-radius:6px; border:1px solid #ccc; background:white; font-size:13px;">De interes</button>
+      <button onclick="localStorage.setItem('accion_licitacion','cancelar'); document.getElementById('trigger_cancelar').click();" style="padding:8px 0; width:100%; cursor:pointer; border-radius:6px; border:1px solid #ccc; background:white; font-size:13px;">Cancelar</button>
     </div>
   </div>
 </div>
 """, unsafe_allow_html=True)
 
+            st.markdown("""
+<style>
+div[data-testid="stHorizontalBlock"] { display: none !important; }
+</style>
+""", unsafe_allow_html=True)
+
             col_verde, col_amarillo, col_cancel = st.columns([1, 1, 1])
             with col_verde:
-                if st.button("Postulando", use_container_width=True, key="btn_postulando"):
+                if st.button("Postulando", use_container_width=True, key="trigger_postulando"):
                     ok = registrar_postulacion(fila, "Postulando")
                     if ok:
                         st.success(f"'{fila['Nombre']}' registrada como Postulando.")
@@ -418,7 +424,7 @@ div[data-testid="column"]:has(button[kind="secondary"]) {
                     else:
                         st.error("Error al registrar.")
             with col_amarillo:
-                if st.button("De interes", use_container_width=True, key="btn_interes"):
+                if st.button("De interes", use_container_width=True, key="trigger_interes"):
                     ok = registrar_postulacion(fila, "De interes")
                     if ok:
                         st.success(f"'{fila['Nombre']}' registrada como De interes.")
@@ -426,11 +432,11 @@ div[data-testid="column"]:has(button[kind="secondary"]) {
                     else:
                         st.error("Error al registrar.")
             with col_cancel:
-                if st.button("Cancelar", use_container_width=True, key="btn_cancelar"):
+                if st.button("Cancelar", use_container_width=True, key="trigger_cancelar"):
                     st.session_state.fila_seleccionada = None
                     st.rerun()
 
-            st.markdown("<div style='height:120px'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:150px'></div>", unsafe_allow_html=True)
     else:
         st.info("Presiona 'Cargar licitaciones' para comenzar.")
 
