@@ -434,9 +434,9 @@ if seccion == "Oportunidades":
         cargar = st.button("Cargar licitaciones desde API", use_container_width=True)
     with col_info:
         if ultima:
-            st.info(f"Última actualización: **{ultima}**")
+            st.markdown(f"""<div style="background:#eff6ff; border-radius:10px; padding:9px 14px; font-size:14px; color:#374151; border: 1px solid #bfdbfe;">Última actualización: <strong>{ultima}</strong></div>""", unsafe_allow_html=True)
         else:
-            st.warning("Sin datos guardados. Presiona 'Cargar licitaciones' para comenzar.")
+            st.markdown(f"""<div style="background:#fffbeb; border-radius:10px; padding:9px 14px; font-size:14px; color:#374151; border: 1px solid #fde68a;">Sin datos guardados.</div>""", unsafe_allow_html=True)
     with col_busq:
         busqueda_global = st.text_input("Buscar", placeholder="Buscar licitación...", label_visibility="collapsed")
 
