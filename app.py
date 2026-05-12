@@ -434,7 +434,7 @@ if seccion == "Oportunidades":
         cargar = st.button("Cargar licitaciones desde API", use_container_width=True)
     with col_info:
         if ultima:
-            st.info(f"Última actualización: **{ultima}** — mostrando datos guardados")
+            st.info(f"Última actualización: **{ultima}**")
         else:
             st.warning("Sin datos guardados. Presiona 'Cargar licitaciones' para comenzar.")
     with col_busq:
