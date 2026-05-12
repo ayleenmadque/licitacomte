@@ -7,6 +7,10 @@ import unicodedata
 from supabase import create_client, Client
 import google.generativeai as genai
 
+# ============================================================
+# CONFIGURACIÓN
+# ============================================================
+
 st.set_page_config(page_title="LicitaSimple", layout="wide")
 
 API_TICKET = st.secrets["API_TICKET"]
@@ -15,11 +19,22 @@ SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 
 API_URL = "https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json"
 
+
+# ============================================================
+# ESTILO VISUAL
+# ============================================================
+
 st.markdown("""
 <style>
 .block-container {
-    padding-top: 1rem;
-    max-width: 95%;
+    padding-top: 1rem !important;
+    padding-left: 4rem !important;
+    padding-right: 4rem !important;
+    max-width: 100% !important;
+}
+
+#MainMenu, footer, header {
+    visibility: hidden;
 }
 
 .main-title {
@@ -34,7 +49,7 @@ st.markdown("""
     text-align: center;
     color: #8a8d99;
     font-size: 15px;
-    margin-bottom: 28px;
+    margin-bottom: 26px;
 }
 
 .nav-line {
@@ -43,13 +58,13 @@ st.markdown("""
 }
 
 div[data-testid="stRadio"] > label {
-    display: none;
+    display: none !important;
 }
 
 div[data-testid="stRadio"] div[role="radiogroup"] {
-    display: flex;
-    flex-direction: row;
-    gap: 28px;
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 28px !important;
 }
 
 div[data-testid="stRadio"] div[role="radiogroup"] label {
@@ -58,8 +73,9 @@ div[data-testid="stRadio"] div[role="radiogroup"] label {
     box-shadow: none !important;
     padding: 0 0 12px 0 !important;
     margin: 0 !important;
-    color: #5f6472 !important;
+    color: #4b5563 !important;
     font-size: 16px !important;
+    font-weight: 500 !important;
     border-bottom: 2px solid transparent !important;
     border-radius: 0 !important;
 }
@@ -70,18 +86,73 @@ div[data-testid="stRadio"] div[role="radiogroup"] label:has(input:checked) {
 }
 
 [data-testid="stTextInput"] input {
-    border-radius: 10px;
-    background-color: #f5f6fa;
-    border: 1px solid #e1e4ea;
+    border-radius: 10px !important;
+    background-color: #f5f6fa !important;
+    border: 1px solid #e1e4ea !important;
+    height: 40px !important;
+}
+
+div.stButton > button {
+    white-space: nowrap !important;
+    border-radius: 10px !important;
+    border: 1px solid #d8dce3 !important;
+    background: #ffffff !important;
+    color: #303442 !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    box-shadow: none !important;
+    min-height: 38px !important;
+}
+
+div.stButton > button:hover {
+    background: #f7f8fa !important;
+    border-color: #c9ced8 !important;
+}
+
+.table-shell {
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    padding: 0 18px 10px 18px;
+    background: #ffffff;
+    margin-top: 12px;
+}
+
+.table-head {
+    font-weight: 600;
+    color: #4b5563;
+    padding: 14px 0;
+}
+
+.row-line {
+    border-top: 1px solid #eef0f3;
+    margin: 4px 0;
+}
+
+.row-text {
+    color: #303442;
+    font-size: 15px;
+}
+
+.muted {
+    color: #7b8190;
+    font-size: 14px;
 }
 </style>
 """, unsafe_allow_html=True)
 
 
+# ============================================================
+# CLIENTE SUPABASE
+# ============================================================
+
 @st.cache_resource
 def get_supabase() -> Client:
     return create_client(SUPABASE_URL, SUPABASE_KEY)
 
+
+# ============================================================
+# PALABRAS CLAVE
+# ============================================================
 
 PALABRAS_BASE = [
     "capacitacion", "capacitaciones", "curso", "cursos",
@@ -97,6 +168,10 @@ PALABRAS_SCORE = [
 ESTADOS = ["De interés", "Postulando", "Adjudicada", "Perdida", "Desierta"]
 
 
+# ============================================================
+# UTILIDADES
+# ============================================================
+
 def normalizar(texto):
     texto = str(texto or "").lower()
     texto = unicodedata.normalize("NFD", texto)
@@ -105,15 +180,20 @@ def normalizar(texto):
 
 
 def calcular_score(texto):
+    texto = normalizar(texto)
     return sum(1 for p in PALABRAS_SCORE if p in texto)
 
 
 def formato_pesos(valor):
     try:
-        return f"${int(valor):,}".replace(",", ".")
+        return f"${int(valor or 0):,}".replace(",", ".")
     except:
         return "$0"
 
+
+# ============================================================
+# API MERCADO PÚBLICO
+# ============================================================
 
 def obtener_licitaciones():
     todas = []
@@ -197,7 +277,6 @@ def procesar(licitaciones):
                 "Monto": monto,
                 "_raw": raw,
             })
-
         except:
             pass
 
@@ -206,6 +285,10 @@ def procesar(licitaciones):
     barra.empty()
     return sorted(resultado, key=lambda x: (-x["Score"], x["Dias restantes"]))
 
+
+# ============================================================
+# SUPABASE: LICITACIONES
+# ============================================================
 
 def guardar_en_supabase(resultados):
     ahora = datetime.now().isoformat()
@@ -288,6 +371,10 @@ def ultima_actualizacion_supabase():
     return None
 
 
+# ============================================================
+# SUPABASE: POSTULACIONES
+# ============================================================
+
 def registrar_postulacion(fila, estado):
     try:
         get_supabase().table("postulaciones").insert({
@@ -332,6 +419,10 @@ def actualizar_postulacion(id_postulacion, campos):
     except:
         return False
 
+
+# ============================================================
+# SUPABASE: HISTÓRICO
+# ============================================================
 
 def leer_historico(nombre=None, productos=None):
     try:
@@ -389,6 +480,10 @@ def calcular_metricas(datos):
     }
 
 
+# ============================================================
+# SESSION STATE
+# ============================================================
+
 if "resultados" not in st.session_state:
     st.session_state.resultados = []
 
@@ -413,6 +508,10 @@ if not st.session_state.cargado_desde_supabase:
 
     st.session_state.cargado_desde_supabase = True
 
+
+# ============================================================
+# HEADER
+# ============================================================
 
 st.markdown('<div class="main-title">LicitaSimple</div>', unsafe_allow_html=True)
 st.markdown(
@@ -445,10 +544,14 @@ with col_search:
 st.markdown('<div class="nav-line"></div>', unsafe_allow_html=True)
 
 
+# ============================================================
+# OPORTUNIDADES
+# ============================================================
+
 if seccion == "Oportunidades":
     ultima = ultima_actualizacion_supabase()
 
-    col_btn, col_info = st.columns([1.2, 3])
+    col_btn, col_info = st.columns([1.3, 3.7])
 
     with col_btn:
         cargar = st.button("Cargar licitaciones desde API", use_container_width=True)
@@ -493,32 +596,42 @@ if seccion == "Oportunidades":
 
         df = df.sort_values("Cierre").reset_index(drop=True)
 
-        col_id, col_nom, col_cierre, col_monto, col_score, col_acc = st.columns([1.2, 3.4, 1.4, 1.2, 0.7, 1.6])
+        st.markdown('<div class="table-shell">', unsafe_allow_html=True)
 
-        col_id.markdown("**ID**")
-        col_nom.markdown("**Nombre**")
-        col_cierre.markdown("**Cierre**")
-        col_monto.markdown("**Monto**")
-        col_score.markdown("**Score**")
-        col_acc.markdown("**Acción**")
+        col_id, col_nom, col_cierre, col_monto, col_score, col_acc = st.columns(
+            [1.2, 4.4, 1.5, 1.4, 0.7, 2.4]
+        )
 
-        st.divider()
+        col_id.markdown('<div class="table-head">ID</div>', unsafe_allow_html=True)
+        col_nom.markdown('<div class="table-head">Nombre</div>', unsafe_allow_html=True)
+        col_cierre.markdown('<div class="table-head">Cierre</div>', unsafe_allow_html=True)
+        col_monto.markdown('<div class="table-head">Monto</div>', unsafe_allow_html=True)
+        col_score.markdown('<div class="table-head">Score</div>', unsafe_allow_html=True)
+        col_acc.markdown('<div class="table-head">Acción</div>', unsafe_allow_html=True)
 
         for i, row in df.iterrows():
-            col_id, col_nom, col_cierre, col_monto, col_score, col_acc = st.columns([1.2, 3.4, 1.4, 1.2, 0.7, 1.6])
+            st.markdown('<div class="row-line"></div>', unsafe_allow_html=True)
 
-            col_id.caption(row["ID"])
+            col_id, col_nom, col_cierre, col_monto, col_score, col_acc = st.columns(
+                [1.2, 4.4, 1.5, 1.4, 0.7, 2.4]
+            )
 
-            if col_nom.button(row["Nombre"][:80], key=f"sel_{i}", use_container_width=True):
+            col_id.markdown(f'<div class="muted">{row["ID"]}</div>', unsafe_allow_html=True)
+
+            if col_nom.button(
+                row["Nombre"][:90],
+                key=f"sel_{i}",
+                use_container_width=True
+            ):
                 st.session_state.fila_seleccionada = row.to_dict()
                 st.rerun()
 
-            col_cierre.caption(row["Cierre"])
-            col_monto.caption(formato_pesos(row.get("Monto", 0)))
-            col_score.caption(str(int(row["Score"])))
+            col_cierre.markdown(f'<div class="muted">{row["Cierre"]}</div>', unsafe_allow_html=True)
+            col_monto.markdown(f'<div class="muted">{formato_pesos(row.get("Monto", 0))}</div>', unsafe_allow_html=True)
+            col_score.markdown(f'<div class="muted">{int(row["Score"])}</div>', unsafe_allow_html=True)
 
             with col_acc:
-                c1, c2 = st.columns(2)
+                c1, c2 = st.columns([1, 1])
 
                 if c1.button("Postular", key=f"post_{i}", use_container_width=True):
                     ok = registrar_postulacion(row.to_dict(), "Postulando")
@@ -531,6 +644,8 @@ if seccion == "Oportunidades":
                     if ok:
                         st.success("Registrada como De interés.")
                         st.rerun()
+
+        st.markdown('</div>', unsafe_allow_html=True)
 
         if st.session_state.fila_seleccionada:
             fila = st.session_state.fila_seleccionada
@@ -554,6 +669,10 @@ if seccion == "Oportunidades":
     else:
         st.info("Presiona 'Cargar licitaciones' para comenzar.")
 
+
+# ============================================================
+# MIS POSTULACIONES
+# ============================================================
 
 elif seccion == "Mis Postulaciones":
     postulaciones = leer_postulaciones()
@@ -668,6 +787,10 @@ elif seccion == "Mis Postulaciones":
                     st.error("Error al guardar.")
 
 
+# ============================================================
+# INTELIGENCIA DE MERCADO
+# ============================================================
+
 elif seccion == "Inteligencia de Mercado":
     st.subheader("Inteligencia de Mercado")
 
@@ -771,6 +894,10 @@ elif seccion == "Inteligencia de Mercado":
     else:
         st.info("Selecciona una licitación en Oportunidades para ver su inteligencia de mercado.")
 
+
+# ============================================================
+# ASISTENTE IA
+# ============================================================
 
 elif seccion == "Asistente IA":
     st.subheader("Asistente IA — LicitaSimple")
