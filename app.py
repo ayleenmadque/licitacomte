@@ -7,20 +7,19 @@ import unicodedata
 from supabase import create_client, Client
 import google.generativeai as genai
 
+st.set_page_config(page_title="LicitaSimple", layout="wide")
+
 API_TICKET = st.secrets["API_TICKET"]
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 
 API_URL = "https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json"
 
-st.set_page_config(page_title="LicitaSimple", layout="wide")
-
-
 st.markdown("""
 <style>
 .block-container {
-    padding-top: 1.2rem;
-    max-width: 94%;
+    padding-top: 1rem;
+    max-width: 95%;
 }
 
 .main-title {
@@ -35,12 +34,11 @@ st.markdown("""
     text-align: center;
     color: #8a8d99;
     font-size: 15px;
-    margin-bottom: 34px;
+    margin-bottom: 28px;
 }
 
-.nav-row {
-    border-bottom: 1px solid #e6e7eb;
-    padding-bottom: 0px;
+.nav-line {
+    border-bottom: 1px solid #e5e7eb;
     margin-bottom: 22px;
 }
 
@@ -50,43 +48,32 @@ div[data-testid="stRadio"] > label {
 
 div[data-testid="stRadio"] div[role="radiogroup"] {
     display: flex;
-    gap: 26px;
+    flex-direction: row;
+    gap: 28px;
 }
 
 div[data-testid="stRadio"] div[role="radiogroup"] label {
-    padding-bottom: 12px;
-    border-bottom: 2px solid transparent;
-    font-size: 16px;
-    color: #303442;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 0 12px 0 !important;
+    margin: 0 !important;
+    color: #5f6472 !important;
+    font-size: 16px !important;
+    border-bottom: 2px solid transparent !important;
+    border-radius: 0 !important;
 }
 
 div[data-testid="stRadio"] div[role="radiogroup"] label:has(input:checked) {
-    color: #ff4b4b;
-    border-bottom: 2px solid #ff4b4b;
+    color: #ff4b4b !important;
+    border-bottom: 2px solid #ff4b4b !important;
 }
 
 [data-testid="stTextInput"] input {
     border-radius: 10px;
-    background-color: #f2f3f6;
-    border: 1px solid #e1e3e8;
+    background-color: #f5f6fa;
+    border: 1px solid #e1e4ea;
 }
-
-.table-header {
-    font-weight: 700;
-    color: #303442;
-    padding: 12px 0;
-}
-
-.row-line {
-    border-top: 1px solid #e5e7eb;
-    padding: 14px 0;
-}
-
-.small-muted {
-    color: #7b7f8c;
-    font-size: 14px;
-}
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -111,7 +98,7 @@ ESTADOS = ["De interés", "Postulando", "Adjudicada", "Perdida", "Desierta"]
 
 
 def normalizar(texto):
-    texto = texto.lower()
+    texto = str(texto or "").lower()
     texto = unicodedata.normalize("NFD", texto)
     texto = "".join(c for c in texto if unicodedata.category(c) != "Mn")
     return texto
@@ -119,6 +106,13 @@ def normalizar(texto):
 
 def calcular_score(texto):
     return sum(1 for p in PALABRAS_SCORE if p in texto)
+
+
+def formato_pesos(valor):
+    try:
+        return f"${int(valor):,}".replace(",", ".")
+    except:
+        return "$0"
 
 
 def obtener_licitaciones():
@@ -142,39 +136,48 @@ def obtener_detalle(codigo):
             response = requests.get(API_URL, params=params, timeout=30)
             data = response.json()
             listado = data.get("Listado", [])
+
             if listado:
                 l = listado[0]
                 organismo = l.get("Comprador", {}).get("NombreOrganismo", "")
                 region = l.get("Comprador", {}).get("RegionUnidad", "")
                 monto = l.get("MontoEstimado", 0) or 0
                 items = l.get("Items", {}).get("Listado", [])
+
                 productos = " ".join([
                     i.get("NombreProducto", "") + " " + i.get("Descripcion", "")
                     for i in items
                 ])
+
                 if organismo or productos:
                     return normalizar(productos), organismo, region, monto, l
         except:
             pass
+
         time.sleep(2)
+
     return "", "", "", 0, {}
 
 
 def procesar(licitaciones):
     resultado = []
     barra = st.progress(0, text="Analizando licitaciones...")
-    total = len(licitaciones)
+    total = len(licitaciones) if licitaciones else 1
 
     for i, l in enumerate(licitaciones):
         nombre = normalizar(l.get("Nombre", ""))
+
         if not any(p in nombre for p in PALABRAS_BASE):
+            barra.progress((i + 1) / total, text=f"Analizando {i+1} de {total}...")
             continue
 
         cierre_str = l.get("FechaCierre", "")
 
         try:
             cierre = datetime.fromisoformat(cierre_str[:19])
+
             if cierre <= datetime.now():
+                barra.progress((i + 1) / total, text=f"Analizando {i+1} de {total}...")
                 continue
 
             dias = (cierre - datetime.now()).days
@@ -194,6 +197,7 @@ def procesar(licitaciones):
                 "Monto": monto,
                 "_raw": raw,
             })
+
         except:
             pass
 
@@ -234,6 +238,7 @@ def guardar_en_supabase(resultados):
 def leer_desde_supabase():
     try:
         hoy = datetime.now().strftime("%Y-%m-%d")
+
         response = (
             get_supabase().table("licitaciones")
             .select("*")
@@ -252,12 +257,13 @@ def leer_desde_supabase():
                 "Cierre": f["cierre"],
                 "Dias restantes": f["dias_restantes"],
                 "Score": f["score"],
-                "Region": "",
+                "Region": f.get("region", ""),
                 "Monto": f.get("monto", 0) or 0,
                 "_raw": {},
             }
             for f in (response.data or [])
         ]
+
     except Exception as e:
         st.warning(f"No se pudo leer desde Supabase: {e}")
         return []
@@ -290,13 +296,14 @@ def registrar_postulacion(fila, estado):
             "organismo": fila["Organismo"],
             "productos": fila.get("Productos", ""),
             "region": fila.get("Region", ""),
-            "monto_estimado": int(fila.get("Monto", 0)),
+            "monto_estimado": int(fila.get("Monto", 0) or 0),
             "cierre": fila["Cierre"],
             "estado": estado,
             "fecha_registro": datetime.now().isoformat(),
             "fecha_actualizacion": datetime.now().isoformat(),
         }).execute()
         return True
+
     except Exception as e:
         st.error(f"Error al registrar: {e}")
         return False
@@ -311,6 +318,7 @@ def leer_postulaciones():
             .execute()
         )
         return response.data or []
+
     except Exception as e:
         st.warning(f"Error al leer postulaciones: {e}")
         return []
@@ -344,6 +352,7 @@ def leer_historico(nombre=None, productos=None):
             datos = sorted(datos, key=lambda d: puntaje(d), reverse=True)[:20]
 
         return datos
+
     except Exception as e:
         st.warning(f"Error al leer historico: {e}")
         return []
@@ -398,8 +407,10 @@ if "chat_history" not in st.session_state:
 
 if not st.session_state.cargado_desde_supabase:
     datos = leer_desde_supabase()
+
     if datos:
         st.session_state.resultados = datos
+
     st.session_state.cargado_desde_supabase = True
 
 
@@ -409,11 +420,9 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-st.markdown('<div class="nav-row">', unsafe_allow_html=True)
+col_tabs, col_search = st.columns([4.5, 1.5])
 
-col_nav, col_search = st.columns([3.8, 1.4])
-
-with col_nav:
+with col_tabs:
     seccion = st.radio(
         "Sección",
         [
@@ -433,7 +442,7 @@ with col_search:
         label_visibility="collapsed"
     )
 
-st.markdown('</div>', unsafe_allow_html=True)
+st.markdown('<div class="nav-line"></div>', unsafe_allow_html=True)
 
 
 if seccion == "Oportunidades":
@@ -476,7 +485,7 @@ if seccion == "Oportunidades":
 
         if busqueda_global:
             mask = df.apply(
-                lambda row: row.astype(str).str.contains(busqueda_global, case=False).any(),
+                lambda row: row.astype(str).str.contains(busqueda_global, case=False, na=False).any(),
                 axis=1
             )
             df = df[mask]
@@ -486,18 +495,16 @@ if seccion == "Oportunidades":
 
         col_id, col_nom, col_cierre, col_monto, col_score, col_acc = st.columns([1.2, 3.4, 1.4, 1.2, 0.7, 1.6])
 
-        col_id.markdown('<div class="table-header">ID</div>', unsafe_allow_html=True)
-        col_nom.markdown('<div class="table-header">Nombre</div>', unsafe_allow_html=True)
-        col_cierre.markdown('<div class="table-header">Cierre</div>', unsafe_allow_html=True)
-        col_monto.markdown('<div class="table-header">Monto</div>', unsafe_allow_html=True)
-        col_score.markdown('<div class="table-header">Score</div>', unsafe_allow_html=True)
-        col_acc.markdown('<div class="table-header">Acción</div>', unsafe_allow_html=True)
+        col_id.markdown("**ID**")
+        col_nom.markdown("**Nombre**")
+        col_cierre.markdown("**Cierre**")
+        col_monto.markdown("**Monto**")
+        col_score.markdown("**Score**")
+        col_acc.markdown("**Acción**")
+
+        st.divider()
 
         for i, row in df.iterrows():
-            monto_str = f"${int(row['Monto']):,}".replace(",", ".") if row.get("Monto") else "$0"
-
-            st.markdown('<div class="row-line"></div>', unsafe_allow_html=True)
-
             col_id, col_nom, col_cierre, col_monto, col_score, col_acc = st.columns([1.2, 3.4, 1.4, 1.2, 0.7, 1.6])
 
             col_id.caption(row["ID"])
@@ -507,7 +514,7 @@ if seccion == "Oportunidades":
                 st.rerun()
 
             col_cierre.caption(row["Cierre"])
-            col_monto.caption(monto_str)
+            col_monto.caption(formato_pesos(row.get("Monto", 0)))
             col_score.caption(str(int(row["Score"])))
 
             with col_acc:
@@ -527,7 +534,6 @@ if seccion == "Oportunidades":
 
         if st.session_state.fila_seleccionada:
             fila = st.session_state.fila_seleccionada
-            monto_sel = f"${int(fila.get('Monto', 0)):,}".replace(",", ".") if fila.get("Monto") else "$0"
 
             st.divider()
 
@@ -539,7 +545,7 @@ if seccion == "Oportunidades":
 
             with col_info:
                 st.markdown(f"**Organismo:** {fila.get('Organismo', '—')}")
-                st.markdown(f"**Monto:** {monto_sel}")
+                st.markdown(f"**Monto:** {formato_pesos(fila.get('Monto', 0))}")
 
             if st.button("Cancelar selección", key="btn_cancelar"):
                 st.session_state.fila_seleccionada = None
@@ -578,12 +584,22 @@ elif seccion == "Mis Postulaciones":
             "monto_adjudicado", "cierre", "notas"
         ]
 
-        df_vista = df_filtrado[columnas_mostrar].copy()
-        df_vista.columns = [
-            "Nombre", "Organismo", "Región", "Estado",
-            "Monto Estimado", "Monto Ofertado",
-            "Monto Adjudicado", "Cierre", "Notas"
-        ]
+        columnas_existentes = [c for c in columnas_mostrar if c in df_filtrado.columns]
+
+        df_vista = df_filtrado[columnas_existentes].copy()
+
+        df_vista = df_vista.rename(columns={
+            "nombre": "Nombre",
+            "organismo": "Organismo",
+            "region": "Región",
+            "estado": "Estado",
+            "monto_estimado": "Monto Estimado",
+            "monto_ofertado": "Monto Ofertado",
+            "monto_adjudicado": "Monto Adjudicado",
+            "cierre": "Cierre",
+            "notas": "Notas"
+        })
+
         df_vista.index = range(1, len(df_vista) + 1)
 
         seleccion_crm = st.dataframe(
@@ -625,12 +641,13 @@ elif seccion == "Mis Postulaciones":
                     step=100000
                 )
 
+                opciones_modalidad = ["", "Online", "Presencial", "Híbrido", "Hibrido"]
+                modalidad_actual = registro.get("modalidad") or ""
+
                 modalidad = st.selectbox(
                     "Modalidad",
-                    ["", "Online", "Presencial", "Híbrido"],
-                    index=["", "Online", "Presencial", "Híbrido"].index(
-                        registro.get("modalidad") or ""
-                    )
+                    opciones_modalidad,
+                    index=opciones_modalidad.index(modalidad_actual) if modalidad_actual in opciones_modalidad else 0
                 )
 
             notas = st.text_area("Notas", value=registro.get("notas") or "")
@@ -666,7 +683,7 @@ elif seccion == "Inteligencia de Mercado":
             monto = fila.get("Monto", 0)
             st.metric(
                 "Presupuesto disponible",
-                f"${monto:,.0f}".replace(",", ".") if monto else "No informado"
+                formato_pesos(monto) if monto else "No informado"
             )
 
         with col_org:
@@ -687,10 +704,10 @@ elif seccion == "Inteligencia de Mercado":
 
                 col_m1, col_m2, col_m3, col_m4 = st.columns(4)
 
-                col_m1.metric("Monto promedio adjudicado", f"${metricas['promedio']:,.0f}".replace(",", "."))
-                col_m2.metric("Monto mínimo", f"${metricas['minimo']:,.0f}".replace(",", "."))
-                col_m3.metric("Monto máximo", f"${metricas['maximo']:,.0f}".replace(",", "."))
-                col_m4.metric("Precio recomendado", f"${metricas['recomendacion']:,.0f}".replace(",", "."))
+                col_m1.metric("Monto promedio adjudicado", formato_pesos(metricas["promedio"]))
+                col_m2.metric("Monto mínimo", formato_pesos(metricas["minimo"]))
+                col_m3.metric("Monto máximo", formato_pesos(metricas["maximo"]))
+                col_m4.metric("Precio recomendado", formato_pesos(metricas["recomendacion"]))
 
                 st.divider()
 
@@ -700,21 +717,24 @@ elif seccion == "Inteligencia de Mercado":
                     st.markdown("### Recomendación de precio")
                     st.info(
                         f"Para ser competitivo, considera ofertar alrededor de "
-                        f"**${metricas['recomendacion']:,.0f}** "
-                        f"(5% bajo el promedio adjudicado)".replace(",", ".")
+                        f"**{formato_pesos(metricas['recomendacion'])}** "
+                        f"(5% bajo el promedio adjudicado)"
                     )
+
+                    monto = fila.get("Monto", 0)
 
                     if monto and metricas["promedio"]:
                         if metricas["promedio"] < monto * 0.5:
                             st.warning(
-                                f"El presupuesto disponible (${monto:,.0f}) es significativamente mayor "
-                                f"al promedio histórico. Buena oportunidad.".replace(",", ".")
+                                f"El presupuesto disponible ({formato_pesos(monto)}) es significativamente mayor "
+                                f"al promedio histórico. Buena oportunidad."
                             )
                         elif metricas["promedio"] > monto:
                             st.error("El promedio histórico supera el presupuesto disponible. Evalúa bien los costos.")
 
                 with col_emp:
                     st.markdown("### Empresas que más ganan")
+
                     for empresa, veces in metricas["top_empresas"]:
                         st.markdown(f"- **{empresa}** — {veces} adjudicación{'es' if veces > 1 else ''}")
 
@@ -730,15 +750,24 @@ elif seccion == "Inteligencia de Mercado":
                     "numero_oferentes", "fecha_adjudicacion"
                 ]
 
-                df_hist_vista = df_hist[columnas_hist].copy()
-                df_hist_vista.columns = [
-                    "Nombre", "Organismo", "Región",
-                    "Monto Adjudicado", "Empresa Ganadora",
-                    "N° Oferentes", "Fecha"
-                ]
+                columnas_existentes = [c for c in columnas_hist if c in df_hist.columns]
+
+                df_hist_vista = df_hist[columnas_existentes].copy()
+
+                df_hist_vista = df_hist_vista.rename(columns={
+                    "nombre": "Nombre",
+                    "organismo": "Organismo",
+                    "region": "Región",
+                    "monto_adjudicado": "Monto Adjudicado",
+                    "empresa_adjudicada": "Empresa Ganadora",
+                    "numero_oferentes": "N° Oferentes",
+                    "fecha_adjudicacion": "Fecha"
+                })
+
                 df_hist_vista.index = range(1, len(df_hist_vista) + 1)
 
                 st.dataframe(df_hist_vista, use_container_width=True)
+
     else:
         st.info("Selecciona una licitación en Oportunidades para ver su inteligencia de mercado.")
 
@@ -768,7 +797,7 @@ elif seccion == "Asistente IA":
                 f"| Días restantes: {l['Dias restantes']}"
             )
 
-        return "\n".join(lines)
+        return "\\n".join(lines)
 
     SYSTEM_PROMPT = f"""Eres un asistente experto en licitaciones públicas chilenas integrado en LicitaSimple.
 Perfil del usuario: capacitación, talleres, formación, transformación digital, Power BI, Excel, IA.
@@ -810,14 +839,18 @@ Sé directo, concreto y usa los datos reales de arriba cuando sea relevante."""
                         })
 
                     chat = model.start_chat(history=gemini_history)
-                    response = chat.send_message(f"{SYSTEM_PROMPT}\n\nUsuario: {prompt}")
+                    response = chat.send_message(f"{SYSTEM_PROMPT}\\n\\nUsuario: {prompt}")
                     respuesta = response.text
 
                 except Exception as e:
                     respuesta = f"Error al conectar con Gemini: {e}"
 
                 st.markdown(respuesta)
-                st.session_state.chat_history.append({"role": "assistant", "content": respuesta})
+
+                st.session_state.chat_history.append({
+                    "role": "assistant",
+                    "content": respuesta
+                })
 
     if st.session_state.chat_history:
         if st.button("Limpiar conversación"):
