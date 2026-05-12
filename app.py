@@ -348,20 +348,44 @@ with tab1:
 
         # Agregar columna de accion con emojis
         df["Accion"] = "🟢 🟡 🔴"
-        df_display = df[["ID", "Nombre", "Cierre", "Monto", "Score", "Accion"]].copy()
+        df["Postulando"] = False
+        df["De interes"] = False
+
+        df_display = df[["ID", "Nombre", "Cierre", "Monto", "Score", "Postulando", "De interes"]].copy()
         df_display.index = range(1, len(df_display) + 1)
 
-        st.caption("Haz clic en una fila para ver el detalle")
-        seleccion = st.dataframe(
+        st.caption("Usa los botones para registrar una licitacion. Haz clic en la fila para ver el detalle.")
+        edited = st.data_editor(
             df_display,
+            use_container_width=True,
+            column_config={
+                "Postulando": st.column_config.CheckboxColumn("🟢", width="small"),
+                "De interes": st.column_config.CheckboxColumn("🟡", width="small"),
+                "Monto": st.column_config.NumberColumn("Monto", format="$%d"),
+                "Score": st.column_config.NumberColumn("Score", width="small"),
+            },
+            disabled=["ID", "Nombre", "Cierre", "Monto", "Score"],
+            hide_index=False,
+        )
+
+        for i, row in edited.iterrows():
+            idx = i - 1
+            fila = df.iloc[idx].to_dict()
+            if row["Postulando"]:
+                registrar_postulacion(fila, "Postulando")
+                st.success(f"'{fila['Nombre'][:50]}' registrada como Postulando.")
+                st.rerun()
+            if row["De interes"]:
+                registrar_postulacion(fila, "De interés")
+                st.success(f"'{fila['Nombre'][:50]}' registrada como De interés.")
+                st.rerun()
+
+        seleccion = st.dataframe(
+            df_display[["ID", "Nombre", "Cierre", "Monto", "Score"]],
             use_container_width=True,
             on_select="rerun",
             selection_mode="single-row",
-            column_config={
-                "Accion": st.column_config.TextColumn("Accion", width="small"),
-                "Score": st.column_config.NumberColumn("Score", width="small"),
-                "Monto": st.column_config.NumberColumn("Monto", format="$%d"),
-            }
+            key="tabla_sel"
         )
 
         filas_sel = seleccion.selection.rows if seleccion.selection else []
