@@ -413,21 +413,9 @@ if not st.session_state.cargado_desde_supabase:
 st.markdown('<div class="main-title">LicitaSimple</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Sistema de inteligencia de licitaciones — Perfil: COMTE</div>', unsafe_allow_html=True)
 
-col_tabs, col_search = st.columns([4.5, 1.5])
-with col_tabs:
-    seccion = st.radio(
-        "Sección",
-        ["Oportunidades", "Mis Postulaciones", "Inteligencia de Mercado", "Asistente IA"],
-        horizontal=True,
-        label_visibility="collapsed"
-    )
-with col_search:
-    pass
+tab1, tab2, tab3, tab4 = st.tabs(["Oportunidades", "Mis Postulaciones", "Inteligencia de Mercado", "Asistente IA"])
 
-st.markdown('<div class="nav-line"></div>', unsafe_allow_html=True)
-
-
-if seccion == "Oportunidades":
+with tab1:
     ultima = ultima_actualizacion_supabase()
     col_btn, col_info, col_busq = st.columns([1, 1, 2])
     with col_btn:
@@ -560,7 +548,7 @@ if seccion == "Oportunidades":
         st.info("Presiona 'Cargar licitaciones' para comenzar.")
 
 
-elif seccion == "Mis Postulaciones":
+with tab2:
     postulaciones = leer_postulaciones()
     if not postulaciones:
         st.info("Aún no tienes postulaciones registradas.")
@@ -613,7 +601,7 @@ elif seccion == "Mis Postulaciones":
                     st.error("Error al guardar.")
 
 
-elif seccion == "Inteligencia de Mercado":
+with tab3:
     st.subheader("Inteligencia de Mercado")
     fila = st.session_state.fila_seleccionada
     if fila:
@@ -661,7 +649,7 @@ elif seccion == "Inteligencia de Mercado":
         st.info("Selecciona una licitación en Oportunidades para ver su inteligencia de mercado.")
 
 
-elif seccion == "Asistente IA":
+with tab4:
     st.subheader("Asistente IA — LicitaSimple")
     st.caption("Consulta sobre tus licitaciones vigentes, estrategias y más")
     GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
