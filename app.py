@@ -422,14 +422,14 @@ with col_tabs:
         label_visibility="collapsed"
     )
 with col_search:
-    busqueda_global = st.text_input("Buscar", placeholder="Buscar licitación...", label_visibility="collapsed")
+    pass
 
 st.markdown('<div class="nav-line"></div>', unsafe_allow_html=True)
 
 
 if seccion == "Oportunidades":
     ultima = ultima_actualizacion_supabase()
-    col_btn, col_info = st.columns([1.3, 3.7])
+    col_btn, col_info, col_busq = st.columns([1, 1, 2])
     with col_btn:
         cargar = st.button("Cargar licitaciones desde API", use_container_width=True)
     with col_info:
@@ -437,6 +437,8 @@ if seccion == "Oportunidades":
             st.info(f"Última actualización: **{ultima}** — mostrando datos guardados")
         else:
             st.warning("Sin datos guardados. Presiona 'Cargar licitaciones' para comenzar.")
+    with col_busq:
+        busqueda_global = st.text_input("Buscar", placeholder="Buscar licitación...", label_visibility="collapsed")
 
     if cargar:
         with st.spinner("Descargando licitaciones de los últimos 30 días..."):
