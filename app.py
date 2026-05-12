@@ -385,7 +385,7 @@ with tab1:
 
             st.markdown(f"""
 <div class="panel-fijo">
-  <div style="display:grid; grid-template-columns: 2fr 1fr; gap:16px; margin-bottom:10px; max-width:1200px; margin-left:auto; margin-right:auto;">
+  <div style="display:grid; grid-template-columns: 2fr 1fr; gap:16px; max-width:1200px; margin-left:auto; margin-right:auto;">
     <div>
       <p style="font-size:11px; color:gray; margin:0 0 4px;">Productos / descripcion del servicio</p>
       <p style="font-size:13px; margin:0; line-height:1.5;">{fila.get("Productos","—")[:300]}</p>
@@ -398,8 +398,8 @@ with tab1:
 </div>
 """, unsafe_allow_html=True)
 
-            col_verde, col_amarillo, col_cancel = st.columns([2, 2, 3])
-            with col_verde:
+            col_info, col_btns = st.columns([2, 1])
+            with col_btns:
                 if st.button("Postulando", use_container_width=True):
                     ok = registrar_postulacion(fila, "Postulando")
                     if ok:
@@ -407,7 +407,6 @@ with tab1:
                         st.session_state.fila_seleccionada = None
                     else:
                         st.error("Error al registrar.")
-            with col_amarillo:
                 if st.button("De interes", use_container_width=True):
                     ok = registrar_postulacion(fila, "De interes")
                     if ok:
@@ -415,7 +414,6 @@ with tab1:
                         st.session_state.fila_seleccionada = None
                     else:
                         st.error("Error al registrar.")
-            with col_cancel:
                 if st.button("Cancelar", use_container_width=True):
                     st.session_state.fila_seleccionada = None
                     st.rerun()
