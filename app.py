@@ -537,7 +537,10 @@ with tab1:
                 c_nom, c_btn = st.columns([5, 1])
                 c_nom.markdown(f'<div class="row-text" style="padding-top:8px;">{row["Nombre"][:80]}</div>', unsafe_allow_html=True)
                 if c_btn.button("▸", key=f"sel_{i}", help="Ver detalle"):
-                    st.session_state.fila_seleccionada = row.to_dict()
+                    if st.session_state.fila_seleccionada and st.session_state.fila_seleccionada.get("ID") == row["ID"]:
+                        st.session_state.fila_seleccionada = None
+                    else:
+                        st.session_state.fila_seleccionada = row.to_dict()
                     st.rerun()
 
             col_cierre.markdown(f'<div class="muted">{row["Cierre"]}</div>', unsafe_allow_html=True)
@@ -557,19 +560,22 @@ with tab1:
                         st.success("Registrada como De interés.")
                         st.rerun()
 
-        if st.session_state.fila_seleccionada:
-            fila = st.session_state.fila_seleccionada
-            st.divider()
-            col_prod, col_info = st.columns([2, 1])
-            with col_prod:
-                st.markdown("**Productos / descripción del servicio**")
-                st.write(fila.get("Productos", "—"))
-            with col_info:
-                st.markdown(f"**Organismo:** {fila.get('Organismo', '—')}")
-                st.markdown(f"**Monto:** {formato_pesos(fila.get('Monto', 0))}")
-            if st.button("Cancelar selección", key="btn_cancelar"):
-                st.session_state.fila_seleccionada = None
-                st.rerun()
+            if st.session_state.fila_seleccionada and st.session_state.fila_seleccionada.get("ID") == row["ID"]:
+                fila = st.session_state.fila_seleccionada
+                st.markdown(f"""
+<div style="background:#f9fafb; border-top:1px solid #e5e7eb; border-bottom:1px solid #e5e7eb; padding:14px 20px; margin:0;">
+  <div style="display:grid; grid-template-columns:2fr 1fr; gap:16px;">
+    <div>
+      <p style="font-size:11px; color:#6b7280; margin:0 0 4px;">Productos / descripcion del servicio</p>
+      <p style="font-size:13px; color:#303442; margin:0; line-height:1.5;">{fila.get("Productos","—")[:400]}</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <div><p style="font-size:11px; color:#6b7280; margin:0 0 2px;">Organismo</p><p style="font-size:13px; color:#303442; margin:0;">{fila.get("Organismo","—")}</p></div>
+      <div><p style="font-size:11px; color:#6b7280; margin:0 0 2px;">Monto</p><p style="font-size:13px; color:#303442; margin:0;">{formato_pesos(fila.get("Monto",0))}</p></div>
+    </div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
     else:
         st.info("Presiona 'Cargar licitaciones' para comenzar.")
 
