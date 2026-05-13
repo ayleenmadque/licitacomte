@@ -532,10 +532,12 @@ with tab1:
 
             col_id.markdown(f'<div class="muted">{row["ID"]}</div>', unsafe_allow_html=True)
 
-            col_nom.markdown(f'<div class="row-text" style="cursor:default;">{row["Nombre"][:90]}</div>', unsafe_allow_html=True)
-            if col_nom.button("▸", key=f"sel_{i}"):
-                st.session_state.fila_seleccionada = row.to_dict()
-                st.rerun()
+            with col_nom:
+                c_nom, c_btn = st.columns([5, 1])
+                c_nom.markdown(f'<div class="row-text" style="padding-top:8px;">{row["Nombre"][:80]}</div>', unsafe_allow_html=True)
+                if c_btn.button("▸", key=f"sel_{i}", help="Ver detalle"):
+                    st.session_state.fila_seleccionada = row.to_dict()
+                    st.rerun()
 
             col_cierre.markdown(f'<div class="muted">{row["Cierre"]}</div>', unsafe_allow_html=True)
             col_monto.markdown(f'<div class="muted">{formato_pesos(row.get("Monto", 0))}</div>', unsafe_allow_html=True)
