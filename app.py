@@ -424,7 +424,7 @@ for s in secciones:
     color = "#ff4b4b" if activo else "#6b7280"
     borde = "2px solid #ff4b4b" if activo else "2px solid transparent"
     slug = s.replace(" ", "+")
-    tabs_html += f'<div onclick="window.location.replace('?tab={slug}')" style="padding:14px 0; text-align:center; font-size:15px; font-weight:500; color:{color}; border-bottom:{borde}; cursor:pointer;">{s}</div>'
+    tabs_html += "<div onclick=\"window.location.replace('?tab=" + slug + "')\" style=\"padding:14px 0; text-align:center; font-size:15px; font-weight:500; color:" + color + "; border-bottom:" + borde + "; cursor:pointer;\">" + s + "</div>"
 tabs_html += '</div>'
 st.markdown(tabs_html, unsafe_allow_html=True)
 
