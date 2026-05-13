@@ -413,9 +413,54 @@ if not st.session_state.cargado_desde_supabase:
 st.markdown('<div class="main-title">LicitaSimple</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Sistema de inteligencia de licitaciones — Perfil: COMTE</div>', unsafe_allow_html=True)
 
-tab1, tab2, tab3, tab4 = st.tabs(["Oportunidades", "Mis Postulaciones", "Inteligencia de Mercado", "Asistente IA"])
+if "seccion" not in st.session_state:
+    st.session_state.seccion = "Oportunidades"
 
-with tab1:
+secciones = ["Oportunidades", "Mis Postulaciones", "Inteligencia de Mercado", "Asistente IA"]
+tabs_html = '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid #e5e7eb; margin-bottom:16px;">'
+for s in secciones:
+    activo = st.session_state.seccion == s
+    color = "#ff4b4b" if activo else "#6b7280"
+    borde = "2px solid #ff4b4b" if activo else "2px solid transparent"
+    tabs_html += f'<div style="padding:14px 0; text-align:center; font-size:15px; font-weight:500; color:{color}; border-bottom:{borde}; cursor:pointer;">{s}</div>'
+tabs_html += '</div>'
+st.markdown(tabs_html, unsafe_allow_html=True)
+
+col_t1, col_t2, col_t3, col_t4 = st.columns(4)
+with col_t1:
+    if st.button("Oportunidades", key="tab_op", use_container_width=True):
+        st.session_state.seccion = "Oportunidades"
+        st.rerun()
+with col_t2:
+    if st.button("Mis Postulaciones", key="tab_mp", use_container_width=True):
+        st.session_state.seccion = "Mis Postulaciones"
+        st.rerun()
+with col_t3:
+    if st.button("Inteligencia de Mercado", key="tab_im", use_container_width=True):
+        st.session_state.seccion = "Inteligencia de Mercado"
+        st.rerun()
+with col_t4:
+    if st.button("Asistente IA", key="tab_ai", use_container_width=True):
+        st.session_state.seccion = "Asistente IA"
+        st.rerun()
+
+st.markdown("""
+<style>
+div[data-testid="stHorizontalBlock"] button[kind="secondary"] {
+    opacity: 0 !important;
+    height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    min-height: 0 !important;
+    border: none !important;
+    pointer-events: none !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+seccion = st.session_state.seccion
+
+if seccion == "Oportunidades":
     ultima = ultima_actualizacion_supabase()
     col_btn, col_info, col_busq = st.columns([1, 1, 2])
     with col_btn:
@@ -548,7 +593,7 @@ with tab1:
         st.info("Presiona 'Cargar licitaciones' para comenzar.")
 
 
-with tab2:
+elif seccion == "Mis Postulaciones":
     postulaciones = leer_postulaciones()
     if not postulaciones:
         st.info("Aún no tienes postulaciones registradas.")
@@ -601,7 +646,7 @@ with tab2:
                     st.error("Error al guardar.")
 
 
-with tab3:
+elif seccion == "Inteligencia de Mercado":
     st.subheader("Inteligencia de Mercado")
     fila = st.session_state.fila_seleccionada
     if fila:
@@ -649,7 +694,7 @@ with tab3:
         st.info("Selecciona una licitación en Oportunidades para ver su inteligencia de mercado.")
 
 
-with tab4:
+elif seccion == "Asistente IA":
     st.subheader("Asistente IA — LicitaSimple")
     st.caption("Consulta sobre tus licitaciones vigentes, estrategias y más")
     GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
