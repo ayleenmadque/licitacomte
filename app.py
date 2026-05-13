@@ -18,7 +18,7 @@ API_URL = "https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json"
 st.markdown("""
 <style>
 .block-container {
-    padding-top: 1rem !important;
+    padding-top: 0.3rem !important;
     padding-left: 4rem !important;
     padding-right: 4rem !important;
     max-width: 100% !important;
@@ -26,10 +26,11 @@ st.markdown("""
 #MainMenu, footer, header { visibility: hidden; }
 .main-title {
     text-align: center;
-    font-size: 42px;
+    font-size: 36px;
     font-weight: 700;
     color: #2f3140;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
+    margin-top: 4px;
 }
 .subtitle {
     text-align: center;
