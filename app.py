@@ -413,24 +413,32 @@ if not st.session_state.cargado_desde_supabase:
 st.markdown('<div class="main-title">LicitaSimple</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Sistema de inteligencia de licitaciones — Perfil: COMTE</div>', unsafe_allow_html=True)
 
-# Navegacion por query params
-params = st.query_params
-tab_actual = params.get("tab", "Oportunidades")
+st.markdown("""
+<style>
+div[data-testid="stTabs"] [role="tablist"] {
+    width: 100% !important;
+    display: flex !important;
+}
+div[data-testid="stTabs"] button {
+    flex: 1 !important;
+    justify-content: center !important;
+    font-size: 15px !important;
+    font-weight: 500 !important;
+    color: #6b7280 !important;
+}
+div[data-testid="stTabs"] button[aria-selected="true"] {
+    color: #ff4b4b !important;
+    border-bottom: 2px solid #ff4b4b !important;
+}
+div[data-testid="stTabs"] button p {
+    font-size: 15px !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
-secciones = ["Oportunidades", "Mis Postulaciones", "Inteligencia de Mercado", "Asistente IA"]
-tabs_html = '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid #e5e7eb; margin-bottom:16px;">'
-for s in secciones:
-    activo = tab_actual == s
-    color = "#ff4b4b" if activo else "#6b7280"
-    borde = "2px solid #ff4b4b" if activo else "2px solid transparent"
-    slug = s.replace(" ", "+")
-    tabs_html += "<div onclick=\"window.location.replace('?tab=" + slug + "')\" style=\"padding:14px 0; text-align:center; font-size:15px; font-weight:500; color:" + color + "; border-bottom:" + borde + "; cursor:pointer;\">" + s + "</div>"
-tabs_html += '</div>'
-st.markdown(tabs_html, unsafe_allow_html=True)
+tab1, tab2, tab3, tab4 = st.tabs(["Oportunidades", "Mis Postulaciones", "Inteligencia de Mercado", "Asistente IA"])
 
-seccion = tab_actual
-
-if seccion == "Oportunidades":
+with tab1:
     ultima = ultima_actualizacion_supabase()
     col_btn, col_info, col_busq = st.columns([1, 1, 2])
     with col_btn:
@@ -563,7 +571,7 @@ if seccion == "Oportunidades":
         st.info("Presiona 'Cargar licitaciones' para comenzar.")
 
 
-elif seccion == "Mis Postulaciones":
+with tab2:
     postulaciones = leer_postulaciones()
     if not postulaciones:
         st.info("Aún no tienes postulaciones registradas.")
@@ -616,7 +624,7 @@ elif seccion == "Mis Postulaciones":
                     st.error("Error al guardar.")
 
 
-elif seccion == "Inteligencia de Mercado":
+with tab3:
     st.subheader("Inteligencia de Mercado")
     fila = st.session_state.fila_seleccionada
     if fila:
@@ -664,7 +672,7 @@ elif seccion == "Inteligencia de Mercado":
         st.info("Selecciona una licitación en Oportunidades para ver su inteligencia de mercado.")
 
 
-elif seccion == "Asistente IA":
+with tab4:
     st.subheader("Asistente IA — LicitaSimple")
     st.caption("Consulta sobre tus licitaciones vigentes, estrategias y más")
     GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
