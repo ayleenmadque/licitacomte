@@ -439,14 +439,18 @@ tab1, tab2, tab3, tab4 = st.tabs(["Oportunidades", "Mis Postulaciones", "Intelig
 
 with tab1:
     ultima = ultima_actualizacion_supabase()
-    col_btn, col_info, col_busq = st.columns([1, 1, 2])
+    n_vigentes = len(st.session_state.resultados) if st.session_state.resultados else 0
+
+    col_btn, col_info, col_count, col_busq = st.columns([1, 1, 0.75, 2.25])
     with col_btn:
         cargar = st.button("Cargar licitaciones desde API", use_container_width=True)
     with col_info:
         if ultima:
-            st.markdown(f"""<div style="background:#eff6ff; border-radius:10px; padding:9px 14px; font-size:14px; color:#374151; border: 1px solid #bfdbfe;">Última actualización: <strong>{ultima}</strong></div>""", unsafe_allow_html=True)
+            st.markdown(f"""<div style="background:#eff6ff; border-radius:10px; padding:9px 14px; font-size:14px; color:#374151; border:1px solid #bfdbfe;">Última actualización: <strong>{ultima}</strong></div>""", unsafe_allow_html=True)
         else:
-            st.markdown(f"""<div style="background:#fffbeb; border-radius:10px; padding:9px 14px; font-size:14px; color:#374151; border: 1px solid #fde68a;">Sin datos guardados.</div>""", unsafe_allow_html=True)
+            st.markdown(f"""<div style="background:#fffbeb; border-radius:10px; padding:9px 14px; font-size:14px; color:#374151; border:1px solid #fde68a;">Sin datos guardados.</div>""", unsafe_allow_html=True)
+    with col_count:
+        st.markdown(f"""<div style="background:#f0fdf4; border-radius:10px; padding:9px 14px; font-size:14px; color:#166534; border:1px solid #bbf7d0; text-align:center; white-space:nowrap;">{n_vigentes} vigentes</div>""", unsafe_allow_html=True)
     with col_busq:
         busqueda_global = st.text_input("Buscar", placeholder="Buscar licitación...", label_visibility="collapsed")
 
@@ -465,14 +469,11 @@ with tab1:
             st.warning("No se encontraron licitaciones relevantes.")
 
     if st.session_state.resultados:
-        st.success(f"{len(st.session_state.resultados)} licitaciones vigentes")
-
         df = pd.DataFrame(st.session_state.resultados)
 
         if busqueda_global:
             mask = df.apply(lambda row: row.astype(str).str.contains(busqueda_global, case=False, na=False).any(), axis=1)
             df = df[mask]
-            st.caption(f"{len(df)} resultados para '{busqueda_global}'")
 
         # Ordenamiento
         col = st.session_state.orden_col
