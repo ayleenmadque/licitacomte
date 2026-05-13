@@ -411,7 +411,6 @@ if not st.session_state.cargado_desde_supabase:
 
 
 st.markdown('<div class="main-title">LicitaSimple</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">Sistema de inteligencia de licitaciones — Perfil: COMTE</div>', unsafe_allow_html=True)
 
 st.markdown("""
 <style>
