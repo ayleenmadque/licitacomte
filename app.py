@@ -567,7 +567,7 @@ with tab1:
   <div style="display:grid; grid-template-columns:2fr 1fr; gap:16px;">
     <div>
       <p style="font-size:11px; color:#6b7280; margin:0 0 4px;">Productos / descripcion del servicio</p>
-      <p style="font-size:13px; color:#303442; margin:0; line-height:1.5;">{fila.get("Productos","—")[:400]}</p>
+      <p style="font-size:13px; color:#303442; margin:0; line-height:1.5;">{fila.get("Productos","—")}</p>
     </div>
     <div style="display:flex; flex-direction:column; gap:8px;">
       <div><p style="font-size:11px; color:#6b7280; margin:0 0 2px;">Organismo</p><p style="font-size:13px; color:#303442; margin:0;">{fila.get("Organismo","—")}</p></div>
